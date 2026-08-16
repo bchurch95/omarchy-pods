@@ -1,0 +1,122 @@
+# omapods
+
+AirPods in the Omarchy bar. Battery for each pod and the case, the listening
+modes, adaptive noise level, Conversation Awareness, One-Bud ANC and ear
+detection, drawn in Omarchy's own panel idiom.
+
+![omapods panel](preview.png)
+
+## What it shows
+
+- **Battery** for the left pod, the right pod and the case, each with a charging
+  and in-ear hint. Nothing else on a Linux box knows these numbers: BlueZ does
+  not expose `org.bluez.Battery1` for AirPods.
+- **Listening mode**, and only the modes the device actually has. Adaptive is
+  Pro-only, and AirPods Pro 3 dropped Off entirely, so the panel asks the daemon
+  rather than assuming four rows.
+- **Adaptive noise level**, shown only while Adaptive is the active mode.
+- **Conversation Awareness** and **One-Bud ANC**, on the Pro models.
+- **Ear detection**: pause when one pod is out, pause when both are out, or
+  never pause.
+- **Case lid**, when the case has broadcast its state.
+
+## What it deliberately does not show
+
+- **Volume and output device** live in the stock Audio panel, which already
+  switches PipeWire sinks. Press `Tab` in this panel to walk to it.
+- **Connect, disconnect and forget** live in the stock Bluetooth panel, and in
+  `omarchy bluetooth device`.
+- **Spatial Audio** has no renderer on Linux, so there is nothing to draw and
+  no row for it.
+- **Mic mode** is not an AirPods control. macOS applies Voice Isolation to the
+  input stream itself, for any microphone, and the AAP protocol carries no mic
+  packet. Input mute and input device live in the stock Audio panel.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Noise Cancellation](docs/panel-noise-cancellation.png) | ![Adaptive](docs/panel-adaptive.png) |
+| Noise Cancellation, both pods in | Adaptive, with the noise level and Conversation Awareness on |
+| ![One pod](docs/panel-one-bud.png) | ![In the case](docs/panel-in-case.png) |
+| One pod out of the case, lid open | Both pods charging, lid closed |
+| ![Low battery](docs/panel-low-battery.png) | ![Daemon not running](docs/panel-daemon-down.png) |
+| Low battery | librepods not running |
+| ![Live](docs/panel-live.png) | |
+| Against a real AirPods Pro 3 | |
+
+## Requirements
+
+- The [librepods](https://github.com/kavishdevar/librepods) daemon, running in
+  your session, and its `librepods-ctl` command on `PATH`. librepods is the
+  project that worked out Apple's AAP protocol on Linux; this plugin only draws
+  what its `librepods-ctl status` reports and sends its control verbs back.
+- AirPods paired to the machine through the usual Bluetooth flow.
+
+The plugin does not poll. librepods publishes its status to
+`$XDG_STATE_HOME/librepods/status.json` whenever it changes, and the panel
+watches that file, so an idle desktop runs no processes at all on its behalf.
+`librepods-ctl` is used only when you actually change something.
+
+The plugin never talks to Bluetooth itself. If `librepods-ctl` is missing or
+the daemon is not running, the panel says so in one line instead of drawing an
+empty surface.
+
+librepods ships `linux/librepods.service`, a systemd user unit bound to
+`graphical-session.target`, so the daemon comes back after a reboot:
+
+```bash
+systemctl --user enable --now librepods.service
+```
+
+## Install
+
+```bash
+omarchy plugin add https://github.com/thisisgm/omapods --enable
+omarchy bar move io.github.thisisgm.omapods
+```
+
+## Remove
+
+```bash
+omarchy plugin remove io.github.thisisgm.omapods
+```
+
+## Keyboard
+
+| Key | Action |
+|-----|--------|
+| `j` / `k`, `↓` / `↑` | move between rows |
+| `enter` / `space` | activate the current row |
+| `←` / `→` | adjust the adaptive noise level |
+| `o` | Off, on the models that have it |
+| `t` | Transparency |
+| `a` | Adaptive |
+| `n` | Noise Cancellation |
+| `c` | toggle Conversation Awareness |
+| `b` | toggle One-Bud ANC |
+| `e` | cycle ear detection |
+| `r` | refresh |
+| `tab` | move to the next panel |
+| `esc` | close |
+
+Left click opens the panel. Right click cycles the listening mode without
+opening anything.
+
+## Settings
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| Hide when disconnected | on | Leaves the bar entirely rather than sitting there with nothing to say. |
+| Path to librepods-ctl | empty | Leave empty to find it on `PATH`. |
+
+## Credits
+
+The hard part is not this panel, it is [librepods](https://github.com/kavishdevar/librepods)
+by Kavish Devar, which reverse-engineered Apple's AAP protocol over L2CAP and
+the BLE advertisement path that carries case and lid state. omapods is a
+display for it.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

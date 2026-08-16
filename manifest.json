@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.thisisgm.omapods",
+  "name": "AirPods",
+  "version": "1.0.0",
+  "author": "GM",
+  "license": "MIT",
+  "description": "AirPods in the Omarchy bar: per-pod and case battery, listening mode, adaptive noise level, conversation awareness, one-bud ANC and ear detection.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "AirPods",
+    "description": "Battery for each pod and the case, plus the listening controls macOS keeps in its Sound menu.",
+    "category": "Audio",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "hideWhenDisconnected": true,
+      "ctlPath": ""
+    },
+    "schema": [
+      {
+        "key": "hideWhenDisconnected",
+        "type": "boolean",
+        "label": "Hide the icon when no AirPods are connected",
+        "defaultValue": true
+      },
+      {
+        "key": "ctlPath",
+        "type": "path",
+        "label": "Path to librepods-ctl",
+        "description": "Leave empty to find librepods-ctl on PATH.",
+        "defaultValue": ""
+      }
+    ]
+  }
+}
