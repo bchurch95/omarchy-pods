@@ -684,8 +684,13 @@ public slots:
 private slots:
     void onTrayIconActivated()
     {
-        QQuickWindow *window = qobject_cast<QQuickWindow *>(
-            QGuiApplication::topLevelWindows().constFirst());
+        // --hide defers the QML load, so a tray click before the first reopen finds no window at all.
+        const auto windows = QGuiApplication::topLevelWindows();
+        if (windows.isEmpty()) {
+            loadMainModule();
+            return;
+        }
+        QQuickWindow *window = qobject_cast<QQuickWindow *>(windows.constFirst());
         if (window)
         {
             window->show();
