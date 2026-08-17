@@ -15,10 +15,12 @@ draws the bar. Judge it against these, not against generic best practice.
 - **The plugin is strictly a display.** `librepods-ctl` is the only thing that
   touches the outside world. Data acquisition belongs in that daemon, never in
   QML.
-- **`librepods-ctl status` prints one line of JSON with alphabetically sorted
-  keys**, because `QJsonObject` sorts. The `left`, `right` and `case` objects
-  are **absent entirely** until a battery packet arrives, rather than present
-  with `available: false`.
+- **The daemon publishes one line of JSON to
+  `$XDG_STATE_HOME/librepods/status.json` on change and removes it on quit**,
+  and the panel watches that file rather than polling. Keys arrive sorted
+  alphabetically because `QJsonObject` sorts. The `left`, `right` and `case`
+  objects are **absent entirely** until a battery packet arrives, rather than
+  present with `available: false`.
 - **`connected` means the L2CAP audio link, not the daemon.** Battery keeps
   arriving over BLE while `connected` is false, which is the pods-in-case case.
 - **The cursor ring appearing on panel open comes from the shared
@@ -45,10 +47,13 @@ draws the bar. Judge it against these, not against generic best practice.
   every parser showing the exact format it consumes.
 - **Errors are elided to a sentence, never dumped.** A parse failure returns a
   full default shape rather than throwing.
-- **Poll rate is a manifest `schema` setting with clamps, re-clamped on read**,
-  never a constant, so a hand-edited `shell.json` cannot poison a timer.
-- **Optimistic state on click, corrected when the poll disagrees**, and the hold
-  must be bounded so a daemon that never agrees cannot freeze a control.
+- **Nothing is polled.** The panel watches the daemon's state file, so there is
+  no interval setting and no clamp to re-apply; asking for one is asking for a
+  timer with nothing to do.
+- **Optimistic state on click, corrected when the daemon disagrees**, and the
+  hold must be bounded so a daemon that never agrees cannot freeze a control.
+  Because the daemon writes only on change, every path that drops the hold has
+  to re-read as well, or nothing will fire to correct the display.
 - **Self-hide when there is nothing to say** rather than sitting in the bar
   empty.
 - Human readable and human troubleshootable outranks clever and outranks

@@ -1,11 +1,11 @@
 ---
 type: reference
 title: What this panel owns, and what it deliberately leaves to Omarchy
-description: The split against the stock audio and Bluetooth panels, the poll cadence, and the behaviours that belong to the shared panel chrome rather than to this plugin
+description: The split against the stock audio and Bluetooth panels, why nothing is polled, and the behaviours that belong to the shared panel chrome rather than to this plugin
 tags: [omarchy, quickshell, design]
 status: stable
 verified:
-  - by: measured against the stock panels on the box, and by timing the plugin's own polls through a logging stub
+  - by: measured against the stock panels on the box, and by counting the plugin's spawns and watching a daemon stop and start under it
     at: 2026-08-16
 ---
 
@@ -44,27 +44,29 @@ row switching A2DP against HFP would be genuinely AirPods-specific, but
 PipeWire already switches profiles when an application opens the source, so it
 would be a knob nobody turns.
 
-# Poll cadence, measured
+# No polling at all, measured
 
-`refreshIntervalSec` is a manifest setting clamped to 2-3600 on every read, so
-a hand-edited `shell.json` cannot poison the timer. While the panel is open the
-cadence drops to a fixed 1s.
+The panel watches `$XDG_STATE_HOME/librepods/status.json` with a `FileView` and
+runs no process while idle. An earlier design polled `librepods-ctl status` on a
+`refreshIntervalSec` manifest setting; the daemon gained a state file instead,
+so the setting, its clamp and the timer were all deleted.
 
-Timed through a stub that logs every invocation, because sampling with `pgrep`
-counts nothing when the subject exits in milliseconds:
-
-```
-CLOSED 15s: 3 polls
-OPEN   10s: 10 polls
-```
+Measured on the box: 0 spawns across 20 idle samples, a change visible in under
+2s, and an absent file read as a stopped daemon. `FileView` with
+`watchChanges: true` also picks up a file **created** after the shell started:
+with the daemon stopped and the shell restarted, starting the daemon moved the
+panel from `Unknown` to the live mode within 6s. That is why there is no startup
+ramp.
 
 # Optimistic state
 
 A click writes the new value locally and records the field as pending, so the
-control moves at once. Incoming polls cannot overwrite that field until the
-daemon reports the same value, which stops a poll already in flight from
-snapping the control back. The hold is bounded at six settle ticks, so a daemon
-that never agrees unfreezes the control instead of pinning it forever.
+control moves at once. An incoming read cannot overwrite that field until the
+daemon reports the same value, which stops a write already in flight from
+snapping the control back. The hold is one 4000 ms `settleTimer`, and when it
+expires it re-reads the file as well as dropping the hold, because a verb the
+pods ignored changes nothing and the daemon dedupes its writes against the last
+line, so no watch would ever fire to correct the display.
 
 # Behaviours that are not this plugin's
 
@@ -83,5 +85,6 @@ own IPC verbs instead.
 
 The bar icon is drawn from primitives rather than shipped as an SVG, because a
 two-stem earbud silhouette loses its stems to rasterisation at bar size. The
-selected listening mode is likewise marked with a drawn dot rather than a check
-glyph, so the mark cannot depend on which Nerd Font the active theme ships.
+selected listening mode is marked with `nf-md-check` U+F012C, which was measured
+rendering correctly, unlike the earbuds codepoints. See
+[nerd-font-glyph-coverage](nerd-font-glyph-coverage.md).

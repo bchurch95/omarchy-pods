@@ -47,16 +47,20 @@ detection, drawn in Omarchy's own panel idiom.
 
 ## Requirements
 
-- The [librepods](https://github.com/kavishdevar/librepods) daemon, running in
-  your session, and its `librepods-ctl` command on `PATH`. librepods is the
-  project that worked out Apple's AAP protocol on Linux; this plugin only draws
-  what its `librepods-ctl status` reports and sends its control verbs back.
+- A librepods daemon that publishes `$XDG_STATE_HOME/librepods/status.json` and
+  accepts the panel's control verbs, plus its `librepods-ctl` command on `PATH`.
+  **Upstream will not do.** [kavishdevar/librepods](https://github.com/kavishdevar/librepods)
+  and every AUR package built from it carry no state file, no `status` verb,
+  none of the `ca:`, `onebud:` or `adaptive:` verbs, and no AirPods Pro 3 model
+  map, so the panel would stay hidden forever. Build
+  [thisisgm/librepods](https://github.com/thisisgm/librepods), a fork of it that
+  adds exactly those.
 - AirPods paired to the machine through the usual Bluetooth flow.
 
-The plugin does not poll. librepods publishes its status to
-`$XDG_STATE_HOME/librepods/status.json` whenever it changes, and the panel
-watches that file, so an idle desktop runs no processes at all on its behalf.
-`librepods-ctl` is used only when you actually change something.
+The plugin does not poll. The daemon writes that file whenever its state
+changes and removes it when it stops, and the panel watches it, so an idle
+desktop runs no processes at all on its behalf. `librepods-ctl` is used only
+when you actually change something.
 
 The plugin never talks to Bluetooth itself. If `librepods-ctl` is missing or
 the daemon is not running, the panel says so in one line instead of drawing an
@@ -109,6 +113,17 @@ opening anything.
 |---------|---------|-------|
 | Hide when disconnected | on | Leaves the bar entirely rather than sitting there with nothing to say. |
 | Path to librepods-ctl | empty | Leave empty to find it on `PATH`. |
+
+## Tests
+
+`Model.js` holds the parsing and formatting, with no QML imports, so it runs
+outside the shell. The suite covers the shapes that bite: the objects the daemon
+omits entirely, a pod it has stopped hearing from, an empty file, a line that is
+not JSON, and a schema newer than this panel reads.
+
+```bash
+deno run --allow-read tests/model.test.js
+```
 
 ## Credits
 

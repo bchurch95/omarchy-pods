@@ -12,7 +12,6 @@ Item {
   property bool connected: false
   property string deviceName: ""
   property string modelName: ""
-  property string modelNumber: ""
   property bool isProSeries: false
   property bool supportsNoiseOff: true
   property int noiseMode: Model.NOISE_UNKNOWN
@@ -44,7 +43,7 @@ Item {
   readonly property int settleHoldMs: 4000
   readonly property int actionStatusMs: 2200
 
-  // Held over incoming polls until the daemon agrees, so a poll already in flight
+  // Held over incoming reads until the daemon agrees, so a write already in flight
   // when the click landed cannot snap the control back.
   property string _pendingField: ""
   property var _pendingValue: null
@@ -58,14 +57,6 @@ Item {
     return value === undefined || value === null ? fallback : value
   }
 
-  function intSetting(name, fallback, min, max) {
-    var n = parseInt(String(setting(name, fallback)), 10)
-    if (!isFinite(n)) n = fallback
-    if (n < min) n = min
-    if (n > max) n = max
-    return n
-  }
-
   function refresh() {
     stateFile.reload()
   }
@@ -74,7 +65,8 @@ Item {
     var status = Model.parseStatus(raw)
     if (!status.ok) {
       // A line we cannot read still proves the daemon is running and writing.
-      daemonReachable = status.schemaTooNew
+      daemonReachable = true
+      connected = false
       schemaUnsupported = status.schemaTooNew
       lastError = status.lastError
       return
@@ -97,7 +89,6 @@ Item {
     connected = status.connected
     deviceName = status.deviceName
     modelName = status.modelName
-    modelNumber = status.modelNumber
     isProSeries = status.isProSeries
     supportsNoiseOff = status.supportsNoiseOff
     leftPod = status.left
@@ -131,7 +122,10 @@ Item {
     if (verb === "") return
     if (commandProcess.running) {
       _queued = { verb: verb, field: field, optimistic: optimistic }
+      _pendingField = field
+      _pendingValue = optimistic
       root[field] = optimistic
+      settleTimer.restart()
       return
     }
     _pendingField = field
@@ -186,11 +180,12 @@ Item {
   }
 
   Timer {
-    // Bounds the optimistic hold, so a daemon that never agrees cannot pin a control.
+    // Bounds the optimistic hold, and re-reads because a verb that changed nothing
+    // leaves the daemon's file untouched, so no watch fires to correct the display.
     id: settleTimer
     interval: root.settleHoldMs
     repeat: false
-    onTriggered: root._clearPending()
+    onTriggered: { root._clearPending(); root.refresh() }
   }
 
   Timer {
@@ -218,9 +213,11 @@ Item {
     stderr: StdioCollector { id: commandErr; waitForEnd: true }
     onExited: function (exitCode) {
       if (exitCode !== 0) {
+        // Clearing the hold also stops the timer that would have re-read, so do it here.
         root._clearPending()
+        root.refresh()
         root._queued = null
-        // Its own field with its own timer, or the next status poll wipes it unread.
+        // Its own field with its own timer, or the next status read wipes it unread.
         root.actionStatus = Model.elideError(commandErr.text || "librepods-ctl rejected the command")
         actionStatusTimer.restart()
       }

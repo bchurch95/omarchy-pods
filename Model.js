@@ -25,9 +25,7 @@ var NOISE_UNKNOWN = -1
 // How many ear-detection behaviours exist, so callers can cycle without a bare 3.
 var EAR_BEHAVIOR_COUNT = 3
 
-// nf-md-check, the one glyph of the three candidates that actually rendered on
-// the box. nf-md-earbuds U+F1085 renders as fallback junk despite fontconfig
-// reporting it in the charset, so the bar mark stays drawn.
+// nf-md-check U+F012C, the one candidate glyph that rendered on the box.
 var GLYPH_CHECK = "\uDB80\uDD2C"
 
 // Longest error the panel will show inside a row, and the cut that leaves room for the ellipsis.
@@ -48,7 +46,6 @@ function defaultStatus() {
     connected: false,
     deviceName: "",
     modelName: "",
-    modelNumber: "",
     isProSeries: false,
     supportsNoiseOff: true,
     noiseMode: NOISE_UNKNOWN,
@@ -71,32 +68,33 @@ function intOr(value, fallback) {
 function podFrom(raw) {
   var pod = defaultPod()
   if (!raw || typeof raw !== "object") return pod
-  // The daemon omits left/right/case entirely until a battery packet arrives,
-  // and reports available:false for a pod it has stopped hearing from.
-  if (raw.available === true) pod.level = intOr(raw.level, LEVEL_UNKNOWN)
+  // available:false means the daemon has stopped hearing from this pod, so its charging and in_ear are stale too.
+  if (raw.available !== true) return pod
+  pod.level = intOr(raw.level, LEVEL_UNKNOWN)
   pod.charging = raw.charging === true
   pod.inEar = raw.in_ear === true
   return pod
 }
 
-// One line of compact JSON from `librepods-ctl status`. QJsonObject sorts keys, so
-// the line arrives alphabetically rather than in the daemon's insert order, and the
-// thirteen *_total counters are interleaved with the fields this parser reads:
+// The whole of $XDG_STATE_HOME/librepods/status.json, one line, keys sorted by QJsonObject rather than by insert order:
 // {"adaptive_level_changes_total":0,"adaptive_noise_level":50,"ca_changes_total":0,
-//  "case":{"available":true,"charging":true,"level":100},"connected":true,
-//  "conversational_awareness":true,"device_name":"GM’s AirPods Pro",
-//  "ear_detection_behavior":0,"is_pro_series":true,
-//  "left":{"available":true,"charging":false,"in_ear":false,"level":82},
+//  "case":{"available":true,"charging":false,"level":100},"connect_calls_total":0,
+//  "connect_failures_total":0,"connected":true,"conversational_awareness":true,
+//  "device_name":"GM’s AirPods Pro","disconnect_calls_total":0,
+//  "disconnect_failures_total":0,"ear_detection_behavior":0,
+//  "ear_detection_changes_total":0,"forget_calls_total":0,"is_pro_series":true,
+//  "left":{"available":true,"charging":false,"in_ear":false,"level":79},
 //  "lid_state":2,"model_int":11,"model_name":"AirPods Pro 3","model_number":"A3064",
-//  "supports_noise_off":false,
-//  "noise_mode":1,"one_bud_anc_mode":false,
-//  "right":{"available":true,"charging":true,"in_ear":false,"level":81},
-//  "schema_version":1}
+//  "noise_control_changes_total":0,"noise_mode":1,"one_bud_anc_changes_total":0,
+//  "one_bud_anc_mode":true,"reconnect_attempts_total":0,"reconnect_failures_total":0,
+//  "reopen_calls_total":0,
+//  "right":{"available":true,"charging":true,"in_ear":false,"level":100},
+//  "schema_version":1,"supports_noise_off":false}
 function parseStatus(raw) {
   var status = defaultStatus()
   var text = String(raw || "").trim()
   if (text === "") {
-    status.lastError = "No status from librepods-ctl"
+    status.lastError = "The librepods status file is empty"
     return status
   }
 
@@ -104,11 +102,11 @@ function parseStatus(raw) {
   try {
     parsed = JSON.parse(text)
   } catch (e) {
-    status.lastError = "Could not read the status line from librepods-ctl"
+    status.lastError = "Could not read the librepods status file"
     return status
   }
   if (!parsed || typeof parsed !== "object" || parsed.schema_version === undefined) {
-    status.lastError = "Status line carried no schema_version"
+    status.lastError = "The librepods status file carried no schema_version"
     return status
   }
 
@@ -124,7 +122,6 @@ function parseStatus(raw) {
   status.connected = parsed.connected === true
   status.deviceName = String(parsed.device_name || "")
   status.modelName = String(parsed.model_name || "")
-  status.modelNumber = String(parsed.model_number || "")
   status.isProSeries = parsed.is_pro_series === true
   // Older daemons do not send this, and every model before the Pro 3 had Off.
   status.supportsNoiseOff = parsed.supports_noise_off !== false
@@ -191,7 +188,7 @@ function podMeta(pod) {
   return ""
 }
 
-// Collapse a helper's stderr into one line the panel can show inside a row.
+// Collapse librepods-ctl's stderr into one line the panel can show inside a row.
 function elideError(text) {
   var value = String(text || "").replace(/\s+/g, " ").trim()
   return value.length > MAX_ERROR_CHARS ? value.substring(0, ELIDED_ERROR_CHARS) + "…" : value

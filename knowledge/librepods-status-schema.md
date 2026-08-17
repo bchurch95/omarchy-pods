@@ -1,21 +1,33 @@
 ---
 type: reference
-title: The librepods-ctl status line, key by key
-description: The exact wire format the panel parses, including the keys that vanish entirely rather than going false
+title: The librepods status file, key by key
+description: The exact wire format the panel parses, where the daemon publishes it, and the keys that vanish entirely rather than going false
 tags: [librepods, ipc, schema]
 status: stable
 verified:
-  - by: polled from a running daemon against a connected AirPods Pro 3, then read back against the status branch in linux/main.cpp
+  - by: read from a running daemon against a connected AirPods Pro 3, then read back against the publish and quit paths in linux/main.cpp
     at: 2026-08-16
 ---
 
-# The command
+# Where it comes from
 
-`librepods-ctl status` connects to the daemon's `QLocalServer`, writes
-`status`, reads one line of compact JSON and exits. One process per poll. The
-CLI owns the reconnect, which is why the panel execs it instead of holding a
-socket: a `Quickshell.Io.Socket` latches into a hard-fail state when the daemon
-respawns and never recovers for the life of the shell.
+The daemon writes the whole status object, one line of compact JSON, to
+`$XDG_STATE_HOME/librepods/status.json` through a `QSaveFile`, so a reader
+never sees a half-written file. Three properties of that path are load-bearing
+for the panel:
+
+- **It writes only on change.** The publish path compares the rendered line
+  against the last one and returns early when they match, so a control verb the
+  pods ignored produces no write at all.
+- **It removes the file on quit**, from `aboutToQuit`, and the daemon's own
+  comment says so: "An absent state file is how a watcher learns the daemon
+  stopped." Measured: `systemctl --user stop librepods` removes it.
+- **It is created late.** The shell can start before the daemon; a `FileView`
+  with `watchChanges: true` picks the file up when it appears, measured at
+  under 6s, which is why the panel needs no startup ramp.
+
+`librepods-ctl status` prints the same object over the control socket. The panel
+does not use it, and runs `librepods-ctl` only for the control verbs below.
 
 # The keys the panel reads
 
@@ -31,7 +43,6 @@ respawns and never recovers for the life of the shell.
 | `adaptive_noise_level` | int | 0-100, only meaningful while `noise_mode` is 3 |
 | `one_bud_anc_mode` | bool | Pro only |
 | `model_name` | string | marketing name, empty until the device is identified |
-| `model_number` | string | raw Apple code, `A3064` on AirPods Pro 3 |
 | `is_pro_series` | bool | gates Conversation Awareness, One-Bud ANC, Adaptive |
 | `ear_detection_behavior` | int | 0 pause when one is out, 1 when both are out, 2 never |
 | `lid_state` | int | 0 open, 1 closed, 2 unknown |
@@ -40,8 +51,9 @@ The line arrives with **keys sorted alphabetically**, not in the daemon's insert
 order, because `QJsonObject` sorts. Anything reading the line positionally, or a
 sample-input comment written from the insert calls, will be wrong.
 
-Thirteen `*_total` counters also appear. They are daemon reliability telemetry,
-not panel data.
+Thirteen `*_total` counters also appear, along with `model_int` and
+`model_number`. They are daemon telemetry and identity, not panel data, and
+nothing in the plugin reads them.
 
 # Two shapes that bite
 

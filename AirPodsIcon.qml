@@ -1,9 +1,7 @@
 import QtQuick
 import qs.Commons
 
-// Drawn rather than shipped as an SVG: at bar size a two-stem mark loses its
-// stems to SVG rasterisation, the same reason the stock Tailscale icon is
-// primitives.
+// Drawn rather than shipped as an SVG: at bar size the stems are lost to rasterisation.
 Item {
   id: root
 

@@ -50,8 +50,7 @@ Panel {
   readonly property bool proControlsVisible: pods.hasAirPods && pods.isProSeries
   readonly property string lidLabel: Model.lidText(pods.lidState)
 
-  // The daemon decides which modes this device has, so the panel never draws a
-  // row the hardware silently ignores.
+  // The daemon decides which modes this device has, so no row is drawn that the hardware ignores.
   readonly property var modes: pods.availableModes()
 
   // Rebuilt whenever a section appears, so j and k never land on a hidden control.
@@ -217,7 +216,7 @@ Panel {
           }
 
           Text {
-            // A command failure gets its own field, or the next status poll wipes it unread.
+            // A command failure gets its own field, or the next status read wipes it unread.
             visible: pods.actionStatus !== "" || (pods.lastError !== "" && pods.daemonReachable)
             width: parent.width
             text: pods.actionStatus !== "" ? pods.actionStatus : pods.lastError

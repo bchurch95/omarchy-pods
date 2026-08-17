@@ -1,0 +1,88 @@
+// Run with: deno run --allow-read tests/model.test.js
+// Model.js has no exports, so it is evaluated here rather than imported.
+
+const source = Deno.readTextFileSync(new URL("../Model.js", import.meta.url))
+const Model = new Function(
+  source + "; return { parseStatus, podFrom, defaultPod, noiseModeVerb, earDetectionVerb, levelFraction, levelText, podMeta, elideError, LEVEL_UNKNOWN, NOISE_UNKNOWN, EAR_PAUSE_ONE_OUT, LID_UNKNOWN, MAX_ERROR_CHARS }"
+)()
+
+let failures = 0
+
+function check(name, actual, expected) {
+  const ok = JSON.stringify(actual) === JSON.stringify(expected)
+  if (!ok) {
+    failures++
+    console.log("FAIL " + name + "\n  expected " + JSON.stringify(expected) + "\n  got      " + JSON.stringify(actual))
+  }
+}
+
+// Byte for byte the line a running daemon wrote, counters and all, copied from the box.
+const live = '{"adaptive_level_changes_total":0,"adaptive_noise_level":50,"ca_changes_total":0,"case":{"available":true,"charging":false,"level":100},"connect_calls_total":0,"connect_failures_total":0,"connected":true,"conversational_awareness":true,"device_name":"GM’s AirPods Pro","disconnect_calls_total":0,"disconnect_failures_total":0,"ear_detection_behavior":0,"ear_detection_changes_total":0,"forget_calls_total":0,"is_pro_series":true,"left":{"available":true,"charging":false,"in_ear":false,"level":79},"lid_state":2,"model_int":11,"model_name":"AirPods Pro 3","model_number":"A3064","noise_control_changes_total":0,"noise_mode":1,"one_bud_anc_changes_total":0,"one_bud_anc_mode":true,"reconnect_attempts_total":0,"reconnect_failures_total":0,"reopen_calls_total":0,"right":{"available":true,"charging":true,"in_ear":false,"level":100},"schema_version":1,"supports_noise_off":false}'
+
+const good = Model.parseStatus(live)
+check("live line parses", good.ok, true)
+check("live modelName", good.modelName, "AirPods Pro 3")
+check("live deviceName keeps the daemon's apostrophe", good.deviceName, "GM’s AirPods Pro")
+check("live left level", good.left.level, 79)
+check("live case has no in_ear", good.caseBattery, { level: 100, charging: false })
+check("live supportsNoiseOff is honoured", good.supportsNoiseOff, false)
+check("live noiseMode", good.noiseMode, 1)
+
+// A fresh daemon omits left, right and case entirely rather than sending available:false.
+const fresh = Model.parseStatus('{"connected":false,"noise_mode":-1,"schema_version":1}')
+check("fresh line parses", fresh.ok, true)
+check("fresh left is the default pod", fresh.left, Model.defaultPod())
+check("fresh case is unknown", fresh.caseBattery.level, Model.LEVEL_UNKNOWN)
+check("supports_noise_off absent means the model has Off", fresh.supportsNoiseOff, true)
+
+// available:false means the daemon stopped hearing from the pod, so no flag survives.
+const gone = Model.podFrom({ available: false, level: 82, charging: true, in_ear: true })
+check("unavailable pod reports no level", gone.level, Model.LEVEL_UNKNOWN)
+check("unavailable pod reports no charging", gone.charging, false)
+check("unavailable pod reports no in_ear", gone.inEar, false)
+check("unavailable pod shows no meta", Model.podMeta(gone), "")
+
+// Every failure path returns the full default shape rather than throwing.
+const empty = Model.parseStatus("")
+check("empty input is not ok", empty.ok, false)
+check("empty input names the failure", empty.lastError !== "", true)
+check("empty input still has a left pod", empty.left, Model.defaultPod())
+
+const garbage = Model.parseStatus("not json at all")
+check("garbage is not ok", garbage.ok, false)
+check("garbage is not schemaTooNew", garbage.schemaTooNew, false)
+
+const noVersion = Model.parseStatus('{"connected":true}')
+check("a line with no schema_version is not ok", noVersion.ok, false)
+
+const tooNew = Model.parseStatus('{"schema_version":2,"connected":true}')
+check("a newer schema is not ok", tooNew.ok, false)
+check("a newer schema is flagged", tooNew.schemaTooNew, true)
+check("a newer schema reports both versions", tooNew.lastError, "librepods speaks status schema 2, this panel reads 1")
+
+check("null parses to the default shape", Model.parseStatus("null").ok, false)
+
+// Verbs, and the out-of-range guards that keep a bad index off the command line.
+check("noise verb for Adaptive", Model.noiseModeVerb(3), "noise:adaptive")
+check("noise verb for an unknown mode is empty", Model.noiseModeVerb(Model.NOISE_UNKNOWN), "")
+check("noise verb past the end is empty", Model.noiseModeVerb(4), "")
+check("ear verb for never pause", Model.earDetectionVerb(2), "ear:off")
+check("ear verb past the end is empty", Model.earDetectionVerb(3), "")
+
+// Meter and label edges.
+check("an unknown level draws an empty track", Model.levelFraction(Model.LEVEL_UNKNOWN), 0)
+check("a level above 100 is clamped", Model.levelFraction(140), 1)
+check("a negative level is clamped", Model.levelFraction(-5), 0)
+check("an unknown level reads as dashes", Model.levelText(Model.LEVEL_UNKNOWN), "--")
+
+// Errors are elided to one line rather than dumped.
+const long = Model.elideError("x\n\n   y".repeat(60))
+check("an elided error is one line", long.indexOf("\n"), -1)
+check("an elided error fits the row", long.length <= Model.MAX_ERROR_CHARS, true)
+check("elideError copes with nothing", Model.elideError(null), "")
+
+if (failures > 0) {
+  console.log(failures + " failed")
+  Deno.exit(1)
+}
+console.log("model.test.js: all checks passed")
