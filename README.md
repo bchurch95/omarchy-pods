@@ -1,10 +1,20 @@
-# omapods
+<h1 align="center">AirPods for Omarchy</h1>
 
-AirPods in the Omarchy bar. Battery for each pod and the case, the listening
-modes, adaptive noise level, Conversation Awareness, One-Bud ANC and ear
-detection, drawn in Omarchy's own panel idiom.
+<p align="center">
+  Battery for each pod and the case, the listening modes, adaptive noise level,
+  Conversation Awareness, One-Bud ANC and ear detection,<br>
+  drawn in Omarchy's own panel idiom.
+</p>
 
-![omapods panel](preview.png)
+<p align="center">
+  <a href="https://omarchyplugins.com/plugin.html?id=io.github.thisisgm.omapods"><img alt="On omarchyplugins.com" src="https://img.shields.io/badge/omarchyplugins.com-listed-8b5cf6"></a>
+  <a href="https://github.com/thisisgm/omarchy-pods/tags"><img alt="Latest tag" src="https://img.shields.io/github/v/tag/thisisgm/omarchy-pods?label=version"></a>
+  <a href="LICENSE"><img alt="Licence" src="https://img.shields.io/badge/licence-MIT%20plus%20GPL--3.0-green"></a>
+</p>
+
+<p align="center">
+  <img src="preview.png" alt="The AirPods panel open in the Omarchy bar" width="420">
+</p>
 
 ## What it shows
 
@@ -20,7 +30,7 @@ detection, drawn in Omarchy's own panel idiom.
   never pause.
 - **Case lid**, when the case has broadcast its state.
 
-## What it deliberately does not show
+## Deliberately absent
 
 - **Volume and output device** live in the stock Audio panel, which already
   switches PipeWire sinks. Press `Tab` in this panel to walk to it.
@@ -35,15 +45,15 @@ detection, drawn in Omarchy's own panel idiom.
 ## Screenshots
 
 | | |
-|---|---|
-| ![Noise Cancellation](docs/panel-noise-cancellation.png) | ![Adaptive](docs/panel-adaptive.png) |
-| Noise Cancellation, both pods in | Adaptive, with the noise level and Conversation Awareness on |
-| ![One pod](docs/panel-one-bud.png) | ![In the case](docs/panel-in-case.png) |
-| One pod out of the case, lid open | Both pods charging, lid closed |
-| ![Low battery](docs/panel-low-battery.png) | ![Daemon not running](docs/panel-daemon-down.png) |
-| Low battery | librepods not running |
-| ![Live](docs/panel-live.png) | |
-| Against a real AirPods Pro 3 | |
+|:---:|:---:|
+| <img src="docs/panel-noise-cancellation.png" alt="Noise Cancellation"><br>Noise Cancellation, both pods in | <img src="docs/panel-adaptive.png" alt="Adaptive"><br>Adaptive, with the noise level and Conversation Awareness on |
+| <img src="docs/panel-one-bud.png" alt="One pod out"><br>One pod out of the case, lid open | <img src="docs/panel-in-case.png" alt="Both pods in the case"><br>Both pods charging, lid closed |
+| <img src="docs/panel-low-battery.png" alt="Low battery"><br>Low battery | <img src="docs/panel-daemon-down.png" alt="Daemon not running"><br>librepods not running |
+
+<p align="center">
+  <img src="docs/panel-live.png" alt="The panel against a real AirPods Pro 3" width="360"><br>
+  <em>Against a real AirPods Pro 3</em>
+</p>
 
 ## Requirements
 
@@ -54,6 +64,8 @@ detection, drawn in Omarchy's own panel idiom.
   panel would stay hidden forever. See [daemon/UPSTREAM.md](daemon/UPSTREAM.md)
   for what it is, who wrote it and what was changed. Install builds it.
 - AirPods paired to the machine through the usual Bluetooth flow.
+
+### How it works
 
 The plugin does not poll. The daemon writes its status to
 `$XDG_STATE_HOME/librepods/status.json` whenever that status changes, and
@@ -71,6 +83,10 @@ empty surface.
 omarchy plugin add https://github.com/thisisgm/omarchy-pods --enable
 omarchy bar move io.github.thisisgm.omapods
 ```
+
+The listing is at
+[omarchyplugins.com](https://omarchyplugins.com/plugin.html?id=io.github.thisisgm.omapods),
+and installs from there land in the same place.
 
 Then build the daemon out of the copy that just cloned, and hand it to systemd.
 Building it needs `cmake`, `ninja`, `qt6-connectivity`, `qt6-tools`,
