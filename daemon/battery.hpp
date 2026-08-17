@@ -208,16 +208,8 @@ public:
             // Update states
             states[Component::Left] = {static_cast<quint8>(rawLeftBattery), isLeftCharging ? BatteryStatus::Charging : BatteryStatus::Discharging};
             states[Component::Right] = {static_cast<quint8>(rawRightBattery), isRightCharging ? BatteryStatus::Charging : BatteryStatus::Discharging};
-            // Always trust the encrypted-payload case byte when it
-            // decoded to a valid level (CHAR_MAX = unavailable
-            // sentinel, already substituted with last-known above).
-            // Earlier behavior gated on podInCase=true which left
-            // the case row at "unknown" whenever the user had pods
-            // in their ears and case nearby — same scenario Apple's
-            // iOS still shows the case battery for. AAP only sends
-            // case via the encrypted payload; the plain-adv lower
-            // nibble is unreliable on Pro 3 (always reports 15).
-            if (rawCaseBattery >= 0 && rawCaseBattery <= 100) {
+            // Only a docked pod can read the case, so the payload's 0 there means unknown and writing it would publish a flat case and trip the low-battery latch.
+            if ((rawCaseBattery > 0 || podInCase) && rawCaseBattery <= 100) {
                 states[Component::Case] = {static_cast<quint8>(rawCaseBattery), isCaseCharging ? BatteryStatus::Charging : BatteryStatus::Discharging};
             }
             primaryPod = isLeftPodPrimary ? Component::Left : Component::Right;

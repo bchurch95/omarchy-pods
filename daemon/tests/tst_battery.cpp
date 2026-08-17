@@ -120,6 +120,44 @@ private slots:
         QCOMPARE(b.getHeadsetLevel(), quint8(0));
         QVERIFY(!b.isHeadsetAvailable());
     }
+
+private:
+    // Sample input: a 16-byte decrypted payload, byte 1 left, byte 2 right, byte 3 case, high bit charging.
+    QByteArray payload(int left, int right, int caseLevel)
+    {
+        QByteArray p(16, '\0');
+        p[1] = static_cast<char>(left);
+        p[2] = static_cast<char>(right);
+        p[3] = static_cast<char>(caseLevel);
+        return p;
+    }
+
+private slots:
+    void encryptedCaseZero_isUnknownWhileNothingIsDockedToReadIt()
+    {
+        Battery b;
+        QVERIFY(b.parseEncryptedPacket(payload(80, 80, 0), true, false, false));
+        QVERIFY(!b.isCaseAvailable());
+    }
+
+    void encryptedCaseZero_isTrustedWhenAPodIsDocked()
+    {
+        Battery b;
+        QVERIFY(b.parseEncryptedPacket(payload(80, 80, 0), true, true, false));
+        QVERIFY(b.isCaseAvailable());
+        QCOMPARE(b.getCaseLevel(), quint8(0));
+    }
+
+    void encryptedCaseLevel_survivesThePodsLeavingTheCase()
+    {
+        Battery b;
+        QVERIFY(b.parseEncryptedPacket(payload(80, 80, 80), true, true, false));
+        QCOMPARE(b.getCaseLevel(), quint8(80));
+
+        QVERIFY(b.parseEncryptedPacket(payload(80, 80, 0), true, false, false));
+        QVERIFY(b.isCaseAvailable());
+        QCOMPARE(b.getCaseLevel(), quint8(80));
+    }
 };
 
 QTEST_GUILESS_MAIN(TestBattery)
