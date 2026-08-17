@@ -82,7 +82,9 @@ private slots:
 
     void statusClosedWithoutReplying_failsRatherThanClaimingSuccess()
     {
-        // Only reopen may read a silent close as a yes, which is the half of the guard nothing else pins.
+        // The guard lets reopen alone read a silent close as a yes, and status is the case that proves the cmd half of it.
+        m_closeOnRead = true;
+
         Run run;
         runCtl("status", run);
 
