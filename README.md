@@ -9,7 +9,6 @@
 <p align="center">
   <a href="https://omarchyplugins.com/plugin.html?id=io.github.thisisgm.omapods"><img alt="On omarchyplugins.com" src="https://img.shields.io/badge/omarchyplugins.com-listed-8b5cf6"></a>
   <a href="https://github.com/thisisgm/omarchy-pods/tags"><img alt="Latest tag" src="https://img.shields.io/github/v/tag/thisisgm/omarchy-pods?label=version"></a>
-  <a href="LICENSE"><img alt="Licence" src="https://img.shields.io/badge/licence-MIT%20plus%20GPL--3.0-green"></a>
 </p>
 
 <p align="center">
