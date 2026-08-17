@@ -13,9 +13,9 @@ hard part of this project, and it is his.
 | Licence | GNU General Public License v3.0, see `LICENSE` in this directory |
 | Modified by | GM, through 2026-08-16 |
 
-The copy here is the `linux/` subtree only, because that is all the widget
-needs. Upstream also ships an Android app and a root module, which are not
-reproduced here; get them from upstream.
+The copy here is the `linux/` subtree only, minus its `extras/` developer
+helpers, because that is all the widget needs. Upstream also ships an Android
+app and a root module. None of that is reproduced here; get it from upstream.
 
 ## What was modified
 
