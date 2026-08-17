@@ -26,6 +26,7 @@ qt_add_executable(librepods
     airpods_packets.h
     trayiconmanager.cpp
     trayiconmanager.h
+    notifier.hpp
     enums.h
     battery.hpp
     BluetoothMonitor.cpp

@@ -44,22 +44,12 @@ TrayIconManager::~TrayIconManager()
     trayMenu = nullptr;
 }
 
-void TrayIconManager::showNotification(const QString &title, const QString &message)
+// Three seconds is Qt's own default toast dwell and is what this replaced.
+static constexpr int kTrayMessageMs = 3000;
+
+void TrayIconManager::showTrayMessage(const QString &title, const QString &message)
 {
-    if (!m_notificationsEnabled) {
-        return;
-    }
-    // Omarchy styles its own notifications; Qt's Information icon renders as the
-    // theme's generic blue dialog-information mark, which looks foreign there.
-    const QString omarchy = QStandardPaths::findExecutable(QStringLiteral("omarchy"));
-    if (!omarchy.isEmpty()) {
-        QProcess::startDetached(omarchy, {QStringLiteral("notification"), QStringLiteral("send"),
-                                          QStringLiteral("--app-name"), QStringLiteral("AirPods"),
-                                          QStringLiteral("-g"), QStringLiteral("\uF025"),
-                                          title, message});
-        return;
-    }
-    trayIcon->showMessage(title, message, QSystemTrayIcon::Information, 3000);
+    trayIcon->showMessage(title, message, QSystemTrayIcon::Information, kTrayMessageMs);
 }
 
 void TrayIconManager::updateBatteryStatus(const QString &status)

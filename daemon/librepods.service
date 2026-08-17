@@ -8,7 +8,7 @@ PartOf=graphical-session.target
 Type=simple
 # Qt enables category debug output by default, and the BLE advertisement line fires several times a second.
 Environment=QT_LOGGING_RULES=openpods.debug=false
-ExecStart=%h/.local/bin/librepods --hide
+ExecStart=%h/.local/bin/librepods --headless
 Restart=on-failure
 RestartSec=5
 

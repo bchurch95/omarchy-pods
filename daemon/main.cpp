@@ -13,6 +13,7 @@
 #include <QQmlContext>
 #include <csignal>
 #include <fcntl.h>
+#include <memory>
 #include <unistd.h>
 #include <QBluetoothLocalDevice>
 #include <QBluetoothSocket>
@@ -31,6 +32,7 @@
 #include "logger.h"
 #include "media/mediacontroller.h"
 #include "trayiconmanager.h"
+#include "notifier.hpp"
 #include "enums.h"
 #include <QRandomGenerator>
 #include "battery.hpp"
@@ -65,30 +67,34 @@ class AirPodsTrayApp : public QObject {
     Q_PROPERTY(bool hearingAidEnabled READ hearingAidEnabled WRITE setHearingAidEnabled NOTIFY hearingAidEnabledChanged)
 
 public:
-    AirPodsTrayApp(bool debugMode, bool hideOnStart, QQmlApplicationEngine *parent = nullptr)
+    AirPodsTrayApp(bool debugMode, bool hideOnStart, bool headless, QQmlApplicationEngine *parent = nullptr)
         : QObject(parent), debugMode(debugMode), m_settings(new QSettings("AirPodsTrayApp", "AirPodsTrayApp"))
         , m_autoStartManager(new AutoStartManager(this)), m_hideOnStart(hideOnStart), parent(parent)
         , m_deviceInfo(new DeviceInfo(this)), m_bleManager(new BleManager(this))
-        , m_systemSleepMonitor(new SystemSleepMonitor(this))
+        , m_systemSleepMonitor(new SystemSleepMonitor(this)), m_notifier(new Notifier(this))
     {
         QLoggingCategory::setFilterRules(QString("openpods.debug=%1").arg(debugMode ? "true" : "false"));
         LOG_INFO("Initializing OpenPods");
 
-        // Initialize tray icon and connect signals
-        trayManager = new TrayIconManager(this);
-        trayManager->setNotificationsEnabled(loadNotificationsEnabled());
-        connect(trayManager, &TrayIconManager::trayClicked, this, &AirPodsTrayApp::onTrayIconActivated);
-        connect(trayManager, &TrayIconManager::middleClicked, this, &AirPodsTrayApp::cycleNoiseControlMode);
-        connect(trayManager, &TrayIconManager::openApp, this, &AirPodsTrayApp::onOpenApp);
-        connect(trayManager, &TrayIconManager::openSettings, this, &AirPodsTrayApp::onOpenSettings);
-        connect(trayManager, &TrayIconManager::noiseControlChanged, this, &AirPodsTrayApp::setNoiseControlMode);
-        connect(trayManager, &TrayIconManager::conversationalAwarenessToggled, this, &AirPodsTrayApp::setConversationalAwareness);
-        connect(m_deviceInfo, &DeviceInfo::batteryStatusChanged, trayManager, &TrayIconManager::updateBatteryStatus);
+        m_notifier->setEnabled(loadNotificationsEnabled());
+        connect(m_notifier, &Notifier::enabledChanged, this, &AirPodsTrayApp::saveNotificationsEnabled);
+        connect(m_notifier, &Notifier::enabledChanged, this, &AirPodsTrayApp::notificationsEnabledChanged);
         connect(m_deviceInfo, &DeviceInfo::batteryStatusChanged, this, &AirPodsTrayApp::checkLowBatteryThresholds);
-        connect(m_deviceInfo, &DeviceInfo::noiseControlModeChanged, trayManager, &TrayIconManager::updateNoiseControlState);
-        connect(m_deviceInfo, &DeviceInfo::conversationalAwarenessChanged, trayManager, &TrayIconManager::updateConversationalAwareness);
-        connect(trayManager, &TrayIconManager::notificationsEnabledChanged, this, &AirPodsTrayApp::saveNotificationsEnabled);
-        connect(trayManager, &TrayIconManager::notificationsEnabledChanged, this, &AirPodsTrayApp::notificationsEnabledChanged);
+
+        // A headless run has no QSystemTrayIcon, which is what keeps Qt Widgets and Gui off this process.
+        if (!headless) {
+            trayManager = new TrayIconManager(this);
+            connect(m_notifier, &Notifier::fallbackRequested, trayManager, &TrayIconManager::showTrayMessage);
+            connect(trayManager, &TrayIconManager::trayClicked, this, &AirPodsTrayApp::onTrayIconActivated);
+            connect(trayManager, &TrayIconManager::middleClicked, this, &AirPodsTrayApp::cycleNoiseControlMode);
+            connect(trayManager, &TrayIconManager::openApp, this, &AirPodsTrayApp::onOpenApp);
+            connect(trayManager, &TrayIconManager::openSettings, this, &AirPodsTrayApp::onOpenSettings);
+            connect(trayManager, &TrayIconManager::noiseControlChanged, this, &AirPodsTrayApp::setNoiseControlMode);
+            connect(trayManager, &TrayIconManager::conversationalAwarenessToggled, this, &AirPodsTrayApp::setConversationalAwareness);
+            connect(m_deviceInfo, &DeviceInfo::batteryStatusChanged, trayManager, &TrayIconManager::updateBatteryStatus);
+            connect(m_deviceInfo, &DeviceInfo::noiseControlModeChanged, trayManager, &TrayIconManager::updateNoiseControlState);
+            connect(m_deviceInfo, &DeviceInfo::conversationalAwarenessChanged, trayManager, &TrayIconManager::updateConversationalAwareness);
+        }
 
         // Initialize MediaController and connect signals
         mediaController = new MediaController(this);
@@ -187,8 +193,8 @@ public:
     int earDetectionBehavior() const { return mediaController->getEarDetectionBehavior(); }
     bool crossDeviceEnabled() const { return CrossDevice.isEnabled; }
     AutoStartManager *autoStartManager() const { return m_autoStartManager; }
-    bool notificationsEnabled() const { return trayManager->notificationsEnabled(); }
-    void setNotificationsEnabled(bool enabled) { trayManager->setNotificationsEnabled(enabled); }
+    bool notificationsEnabled() const { return m_notifier->enabled(); }
+    void setNotificationsEnabled(bool enabled) { m_notifier->setEnabled(enabled); }
     int retryAttempts() const { return m_retryAttempts; }
     bool hideOnStart() const { return m_hideOnStart; }
     DeviceInfo *deviceInfo() const { return m_deviceInfo; }
@@ -358,10 +364,10 @@ public slots:
     // delegate the trip/reset decision to its LowBatteryLatch. Format
     // + emit the user-visible toast here; the latch owns no UI. The
     // global notificationsEnabled setting still gates emission via
-    // TrayIconManager::showNotification.
+    // Notifier::notify.
     void checkLowBatteryThresholds()
     {
-        if (!m_deviceInfo || !trayManager) return;
+        if (!m_deviceInfo) return;
         Battery *b = m_deviceInfo->getBattery();
         if (!b) return;
 
@@ -385,7 +391,7 @@ public slots:
         {
             const auto fire = s.latch->evaluate(s.level, s.available, s.charging);
             if (fire) {
-                trayManager->showNotification(
+                m_notifier->notify(
                     tr("%1 AirPod Low Battery").arg(QString::fromLatin1(s.label)),
                     tr("%1% remaining").arg(*fire));
             }
@@ -690,6 +696,7 @@ private slots:
 
     void onOpenApp()
     {
+        if (!parent) return;
         // Guard against empty rootObjects: QList::first() on an empty
         // list is undefined behavior, not a null return. After the
         // lazy-QML deferral in main() (--hide skips eager
@@ -705,6 +712,7 @@ private slots:
 
     void onOpenSettings()
     {
+        if (!parent) return;
         const auto roots = parent->rootObjects();
         if (!roots.isEmpty()) {
             QMetaObject::invokeMethod(roots.first(), "reopen", Q_ARG(QVariant, "settings"));
@@ -770,11 +778,13 @@ private slots:
         // doesn't want to see "AirPods Disconnected" every time they close
         // the lid. Tray icon still resets so visual state is accurate.
         if (!m_isSuspending) {
-            trayManager->showNotification(
+            m_notifier->notify(
                 tr("AirPods Disconnected"),
                 tr("Your AirPods have been disconnected"));
         }
-        trayManager->resetTrayIcon();
+        if (trayManager) {
+            trayManager->resetTrayIcon();
+        }
     }
 
     void bluezDeviceDisconnected(const QString &address, const QString &name)
@@ -1280,7 +1290,12 @@ public:
         m_bleManager->startScan();
     }
 
+    // Null engine is the headless run, where there is no window to open and nothing to say about it.
     void loadMainModule() {
+        if (!parent) {
+            LOG_INFO("Running headless, so there is no window to open");
+            return;
+        }
         parent->load(QUrl(QStringLiteral("qrc:/linux/Main.qml")));
     }
 
@@ -1308,7 +1323,8 @@ private:
     QByteArray lastBatteryStatus;
     QByteArray lastEarDetectionStatus;
     MediaController* mediaController;
-    TrayIconManager *trayManager;
+    // Null in a headless run; every use needs a guard.
+    TrayIconManager *trayManager = nullptr;
     BluetoothMonitor *monitor;
     QSettings *m_settings;
     AutoStartManager *m_autoStartManager;
@@ -1461,29 +1477,28 @@ private:
     DeviceInfo *m_deviceInfo;
     BleManager *m_bleManager;
     SystemSleepMonitor *m_systemSleepMonitor = nullptr;
+    Notifier *m_notifier = nullptr;
     QString m_phoneMacStatus;
 };
 
 int main(int argc, char *argv[]) {
-    // QtWidgets fallback (any file dialog, message box, native QStyle) needs
-    // a dark palette so it doesn't pop a white panel on top of our dark QML.
-    // This must be set before QApplication constructor to be picked up by
-    // QStyle on init.
-    {
-        QPalette p;
-        p.setColor(QPalette::Window,          QColor("#0d0d0d"));
-        p.setColor(QPalette::WindowText,      QColor("#ffffff"));
-        p.setColor(QPalette::Base,            QColor("#1a1a1a"));
-        p.setColor(QPalette::AlternateBase,   QColor("#141414"));
-        p.setColor(QPalette::Text,            QColor("#ffffff"));
-        p.setColor(QPalette::Button,          QColor("#1a1a1a"));
-        p.setColor(QPalette::ButtonText,      QColor("#ffffff"));
-        p.setColor(QPalette::Highlight,       QColor("#b6b6b6"));
-        p.setColor(QPalette::HighlightedText, QColor("#0d0d0d"));
-        p.setColor(QPalette::PlaceholderText, QColor("#8d8d8d"));
-        QApplication::setPalette(p);
+    // Read before the application object exists, because --headless decides which class to construct.
+    bool debugMode = false;
+    bool hideOnStart = false;
+    bool headless = false;
+    for (int i = 1; i < argc; ++i) {
+        if (QString(argv[i]) == "--debug") {
+            debugMode = true;
+        }
+        if (QString(argv[i]) == "--hide") {
+            hideOnStart = true;
+        }
+        // --hide still builds the whole GUI so the window can be opened later; --headless never can.
+        if (QString(argv[i]) == "--headless") {
+            headless = true;
+        }
     }
-    QQuickStyle::setStyle("Basic");
+
     // Set BEFORE QApplication construction so Qt's QDBusTrayIcon uses
     // "openpods" as the SNI Id property. Quickshell's Bar.qml matches on
     // this id to route left-click to PodsMenu instead of activating the
@@ -1492,8 +1507,35 @@ int main(int argc, char *argv[]) {
     // the application name doesn't migrate user settings.
     QCoreApplication::setApplicationName("openpods");
     QCoreApplication::setOrganizationName("openpods");
-    QApplication app(argc, argv);
-    QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Dark);
+
+    // QApplication's constructor is what pages Qt Gui, Widgets, Qml and Quick into this process.
+    std::unique_ptr<QCoreApplication> appOwner;
+    if (headless) {
+        appOwner = std::make_unique<QCoreApplication>(argc, argv);
+    } else {
+        // QtWidgets fallback (any file dialog, message box, native QStyle) needs
+        // a dark palette so it doesn't pop a white panel on top of our dark QML.
+        // This must be set before QApplication constructor to be picked up by
+        // QStyle on init.
+        {
+            QPalette p;
+            p.setColor(QPalette::Window,          QColor("#0d0d0d"));
+            p.setColor(QPalette::WindowText,      QColor("#ffffff"));
+            p.setColor(QPalette::Base,            QColor("#1a1a1a"));
+            p.setColor(QPalette::AlternateBase,   QColor("#141414"));
+            p.setColor(QPalette::Text,            QColor("#ffffff"));
+            p.setColor(QPalette::Button,          QColor("#1a1a1a"));
+            p.setColor(QPalette::ButtonText,      QColor("#ffffff"));
+            p.setColor(QPalette::Highlight,       QColor("#b6b6b6"));
+            p.setColor(QPalette::HighlightedText, QColor("#0d0d0d"));
+            p.setColor(QPalette::PlaceholderText, QColor("#8d8d8d"));
+            QApplication::setPalette(p);
+        }
+        QQuickStyle::setStyle("Basic");
+        appOwner = std::make_unique<QApplication>(argc, argv);
+        QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Dark);
+    }
+    QCoreApplication &app = *appOwner;
 
     // POSIX signal → Qt event-loop bridge. Qt6 doesn't catch SIGTERM by
     // default, so systemd-style TERM kills the process without firing
@@ -1597,36 +1639,40 @@ int main(int argc, char *argv[]) {
     // predecessor left behind before binding our own.
     QLocalServer::removeServer(ipcPath);
 
-    app.setDesktopFileName("me.kavishdevar.librepods");
-    app.setQuitOnLastWindowClosed(false);
-
-    bool debugMode = false;
-    bool hideOnStart = false;
-    for (int i = 1; i < argc; ++i) {
-        if (QString(argv[i]) == "--debug") {
-            debugMode = true;
-        }
-        if (QString(argv[i]) == "--hide") {
-            hideOnStart = true;
-        }
+    if (!headless) {
+        QGuiApplication::setDesktopFileName("me.kavishdevar.librepods");
+        QGuiApplication::setQuitOnLastWindowClosed(false);
     }
 
-    QQmlApplicationEngine engine;
-    qmlRegisterType<Battery>("me.kavishdevar.Battery", 1, 0, "Battery");
-    qmlRegisterType<DeviceInfo>("me.kavishdevar.DeviceInfo", 1, 0, "DeviceInfo");
-    AirPodsTrayApp *trayApp = new AirPodsTrayApp(debugMode, hideOnStart, &engine);
-    engine.rootContext()->setContextProperty("airPodsTrayApp", trayApp);
+    // Same lifetime as the stack object this replaced, so the engine still deletes trayApp on the way out.
+    std::unique_ptr<QQmlApplicationEngine> engineOwner;
+    if (!headless) {
+        engineOwner = std::make_unique<QQmlApplicationEngine>();
+        qmlRegisterType<Battery>("me.kavishdevar.Battery", 1, 0, "Battery");
+        qmlRegisterType<DeviceInfo>("me.kavishdevar.DeviceInfo", 1, 0, "DeviceInfo");
+    }
+    QQmlApplicationEngine *engine = engineOwner.get();
 
-    // Expose PHONE_MAC_ADDRESS environment variable to QML for placeholder in settings
-    {
-        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-        QString phoneMacEnv = env.value("PHONE_MAC_ADDRESS", "");
-        engine.rootContext()->setContextProperty("PHONE_MAC_ADDRESS", phoneMacEnv);
-        // Initialize the visible status in the GUI
-        trayApp->updatePhoneMacStatus(phoneMacEnv.isEmpty() ? QStringLiteral("No phone MAC set") : phoneMacEnv);
+    AirPodsTrayApp *trayApp = new AirPodsTrayApp(debugMode, hideOnStart, headless, engine);
+    // Headless has no engine to be parented to, and the destructor logs the final reliability summary.
+    if (headless) {
+        trayApp->setParent(&app);
     }
 
-    engine.addImageProvider("qrcode", new QRCodeImageProvider());
+    if (!headless) {
+        engine->rootContext()->setContextProperty("airPodsTrayApp", trayApp);
+
+        // Expose PHONE_MAC_ADDRESS environment variable to QML for placeholder in settings
+        {
+            QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+            QString phoneMacEnv = env.value("PHONE_MAC_ADDRESS", "");
+            engine->rootContext()->setContextProperty("PHONE_MAC_ADDRESS", phoneMacEnv);
+            // Initialize the visible status in the GUI
+            trayApp->updatePhoneMacStatus(phoneMacEnv.isEmpty() ? QStringLiteral("No phone MAC set") : phoneMacEnv);
+        }
+
+        engine->addImageProvider("qrcode", new QRCodeImageProvider());
+    }
 
     // Defer Main.qml load when --hide. The daemon's tray icon + low-
     // battery toast + status IPC + AAP/BLE paths are all pure C++ —
@@ -1637,7 +1683,7 @@ int main(int argc, char *argv[]) {
     // user may never open the window in a session, so eager load is
     // pure waste. onOpenApp / onOpenSettings / the "reopen" IPC verb
     // all check rootObjects() and lazy-load on demand.
-    if (!hideOnStart) {
+    if (!headless && !hideOnStart) {
         trayApp->loadMainModule();
     }
 
@@ -1665,7 +1711,7 @@ int main(int argc, char *argv[]) {
     // path. `engine` and `trayApp` outlive the server (they're created
     // earlier), and `serverPtr` lets us avoid `[&]` capturing the local.
     QLocalServer *serverPtr = &server;
-    QQmlApplicationEngine *enginePtr = &engine;
+    QQmlApplicationEngine *enginePtr = engine;
     AirPodsTrayApp *trayAppPtr = trayApp;
 
     QObject::connect(serverPtr, &QLocalServer::newConnection,
@@ -1682,7 +1728,8 @@ int main(int argc, char *argv[]) {
             if (msg == "reopen") {
                 LOG_INFO("Reopening app window");
                 trayAppPtr->incReopenCallsTotal();
-                const auto roots = enginePtr->rootObjects();
+                // Null engine is the headless run; loadMainModule says so and returns.
+                const auto roots = enginePtr ? enginePtr->rootObjects() : QList<QObject *>();
                 if (!roots.isEmpty()) {
                     QMetaObject::invokeMethod(roots.first(), "reopen", Q_ARG(QVariant, "app"));
                 } else {
@@ -1775,7 +1822,8 @@ int main(int argc, char *argv[]) {
         QFile::remove(QStandardPaths::writableLocation(QStandardPaths::GenericStateLocation)
                       + QStringLiteral("/librepods/status.json"));
     });
-    return app.exec();
+    // QApplication::exec sets the accessibility root, which QCoreApplication::exec does not.
+    return headless ? QCoreApplication::exec() : QApplication::exec();
 }
 
 #include "main.moc"

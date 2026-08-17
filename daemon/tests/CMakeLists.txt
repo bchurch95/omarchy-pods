@@ -77,6 +77,11 @@ openpods_add_test(tst_ipcpath
     ../ipcpath.hpp
 )
 
+openpods_add_test(tst_notifier
+    tst_notifier.cpp
+    ../notifier.hpp
+)
+
 # Stochastic stress over protocol parsers — pulls in ble/bleutils
 # which itself wants OpenSSL EVP for AES round-trips. Skipping AUTOMOC
 # headers we don't need; bleutils.h is a free function header.

@@ -10,7 +10,6 @@ class QActionGroup;
 class TrayIconManager : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(bool notificationsEnabled READ notificationsEnabled WRITE setNotificationsEnabled NOTIFY notificationsEnabledChanged)
 
 public:
     explicit TrayIconManager(QObject *parent = nullptr);
@@ -22,17 +21,8 @@ public:
 
     void updateConversationalAwareness(bool enabled);
 
-    void showNotification(const QString &title, const QString &message);
-
-    bool notificationsEnabled() const { return m_notificationsEnabled; }
-    void setNotificationsEnabled(bool enabled)
-    {
-        if (m_notificationsEnabled != enabled)
-        {
-            m_notificationsEnabled = enabled;
-            emit notificationsEnabledChanged(enabled);
-        }
-    }
+    // Notifier's fallback when omarchy is not on PATH; Notifier owns the enabled check.
+    void showTrayMessage(const QString &title, const QString &message);
 
     void resetTrayIcon()
     {
@@ -41,7 +31,6 @@ public:
     }
 
 signals:
-    void notificationsEnabledChanged(bool enabled);
     void trayClicked();
     // Middle-click on tray icon. The OpenPods loop spec maps this to a
     // noise-control mode cycle (matches the macOS Control Center
@@ -61,7 +50,6 @@ private:
     QMenu *trayMenu = nullptr;
     QAction *caToggleAction = nullptr;
     QActionGroup *noiseControlGroup = nullptr;
-    bool m_notificationsEnabled = true;
 
     void setupMenuActions();
     void updateIconFromBattery(const QString &status);
