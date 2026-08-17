@@ -69,7 +69,12 @@ int main(int argc, char *argv[]) {
         // for the response before tearing the socket down, otherwise
         // the read silently returns empty.
         if (!socket.waitForReadyRead(1000)) {
-            QTextStream(stderr) << "Timed out waiting for a reply to " << cmd << "\n";
+            // A windowed daemon opens the window and answers nothing, so for reopen silence is a yes.
+            if (cmd == "reopen") {
+                socket.disconnectFromServer();
+                return 0;
+            }
+            QTextStream(stderr) << "Timed out waiting for status reply\n";
             socket.disconnectFromServer();
             return 1;
         }
