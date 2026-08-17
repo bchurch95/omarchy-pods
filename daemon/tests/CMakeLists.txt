@@ -82,9 +82,7 @@ openpods_add_test(tst_notifier
     ../notifier.hpp
 )
 
-# The exception to the no-binary rule above: this runs the real librepods-ctl
-# as a child against a stub QLocalServer, which is the only way to pin its exit
-# codes. librepods-ctl links neither BlueZ nor PulseAudio nor Widgets.
+# The exception to the no-binary rule above: librepods-ctl links none of BlueZ, PulseAudio or Widgets.
 openpods_add_test(tst_ctl
     tst_ctl.cpp
     ../ipcpath.hpp

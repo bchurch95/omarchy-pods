@@ -80,6 +80,16 @@ private slots:
         QCOMPARE(run.err, QByteArray());
     }
 
+    void statusClosedWithoutReplying_failsRatherThanClaimingSuccess()
+    {
+        // Only reopen may read a silent close as a yes, which is the half of the guard nothing else pins.
+        Run run;
+        runCtl("status", run);
+
+        QCOMPARE(run.exitCode, 1);
+        QVERIFY(run.err.startsWith("Timed out waiting for a reply to status"));
+    }
+
     void statusLeftHanging_failsAndNamesTheCommand()
     {
         m_closeOnRead = false;
