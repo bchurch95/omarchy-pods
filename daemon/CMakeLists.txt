@@ -103,6 +103,9 @@ install(FILES assets/me.kavishdevar.librepods.desktop
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications")
 install(FILES assets/librepods.svg
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/apps")
+# With the documented --prefix ~/.local this lands in ~/.local/share/systemd/user, which systemd searches.
+install(FILES librepods.service
+    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/systemd/user")
 
 # Translation support
 qt_add_translations(librepods

@@ -45,10 +45,14 @@ matter to this widget:
 cd daemon
 cmake -B build -G Ninja
 cmake --build build
+cmake --install build --prefix ~/.local
 ```
 
-Needs `cmake`, `ninja`, `qt6-connectivity`, `qt6-tools`, `qt6-quickcontrols2`,
-`pkg-config` and `libpulse`, all in the Arch `extra` repository.
+Needs `cmake`, `ninja`, `qt6-connectivity`, `qt6-tools`, `qt6-declarative` and
+`libpulse` from the Arch `extra` repository, and `pkgconf` from `core`. With that
+prefix the install step puts `librepods.service` in `~/.local/share/systemd/user`,
+which systemd searches, so `systemctl --user enable --now librepods.service` finds it
+by name.
 
 ## Licence
 

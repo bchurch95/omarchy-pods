@@ -52,13 +52,8 @@ detection, drawn in Omarchy's own panel idiom.
   package built from it carry no state file, no `status` verb, none of the
   `ca:`, `onebud:` or `adaptive:` verbs, and no AirPods Pro 3 model map, so the
   panel would stay hidden forever. See [daemon/UPSTREAM.md](daemon/UPSTREAM.md)
-  for what it is, who wrote it and what was changed.
+  for what it is, who wrote it and what was changed. Install builds it.
 - AirPods paired to the machine through the usual Bluetooth flow.
-
-```bash
-cd daemon && cmake -B build -G Ninja && cmake --build build
-systemctl --user enable --now librepods.service
-```
 
 The plugin does not poll. The daemon writes its status to
 `$XDG_STATE_HOME/librepods/status.json` whenever that status changes, and
@@ -70,9 +65,6 @@ The plugin never talks to Bluetooth itself. If `librepods-ctl` is missing or
 the daemon is not running, the panel says so in one line instead of drawing an
 empty surface.
 
-The daemon ships a systemd user unit bound to `graphical-session.target`, so
-it comes back after a reboot.
-
 ## Install
 
 ```bash
@@ -80,11 +72,33 @@ omarchy plugin add https://github.com/thisisgm/omarchy-pods --enable
 omarchy bar move io.github.thisisgm.omapods
 ```
 
+Then build the daemon out of the copy that just cloned, and hand it to systemd.
+Building it needs `cmake`, `ninja`, `qt6-connectivity`, `qt6-tools`,
+`qt6-declarative`, `pkgconf` and `libpulse`:
+
+```bash
+cd ~/.config/omarchy/plugins/io.github.thisisgm.omapods/daemon
+cmake -B build -G Ninja && cmake --build build
+cmake --install build --prefix ~/.local
+systemctl --user enable --now librepods.service
+```
+
+`~/.local` is the prefix the unit expects, because it runs `%h/.local/bin/librepods`,
+and Omarchy already puts `~/.local/bin` on `PATH`, which is where the panel finds
+`librepods-ctl`. The unit is bound to `graphical-session.target`, so the daemon
+comes back after a reboot.
+
 ## Remove
 
 ```bash
+systemctl --user disable --now librepods.service
+xargs rm -f < ~/.config/omarchy/plugins/io.github.thisisgm.omapods/daemon/build/install_manifest.txt
 omarchy plugin remove io.github.thisisgm.omapods
 ```
+
+The daemon installs into `~/.local`, so it outlives the plugin. CMake lists what it
+put there in `install_manifest.txt`, which lives in the build tree, so that line has
+to run before the plugin directory goes.
 
 ## Keyboard
 
