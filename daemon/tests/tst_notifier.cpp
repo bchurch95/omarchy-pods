@@ -1,5 +1,4 @@
-// Notifier exists so a headless daemon still sends toasts without a tray, so
-// what these assert is which of the two paths a given PATH and enabled state picks.
+// Which of the two paths a given PATH and enabled state picks, since headless has no tray.
 
 #include "notifier.hpp"
 
@@ -10,6 +9,9 @@
 class TestNotifier : public QObject
 {
     Q_OBJECT
+
+    // notification, send, --app-name, AirPods, -g, the glyph, title, message.
+    static constexpr int kExpectedArgCount = 8;
 
 private slots:
     void init()
@@ -28,7 +30,8 @@ private slots:
 
         notifier.notify(QStringLiteral("Left AirPod Low Battery"), QStringLiteral("10% remaining"));
 
-        QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(m_argsFile), 3000);
+        // The stub's redirect creates the file before printf fills it, so wait on the content.
+        QTRY_VERIFY_WITH_TIMEOUT(readArgs().size() == kExpectedArgCount, 3000);
         const QStringList args = readArgs();
         QCOMPARE(args.value(0), QStringLiteral("notification"));
         QCOMPARE(args.value(1), QStringLiteral("send"));
@@ -96,6 +99,7 @@ private:
         QVERIFY(f.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner));
     }
 
+    // One argument per line: "notification\nsend\n--app-name\nAirPods\n-g\n\uF025\nTitle\nMessage\n"
     QStringList readArgs()
     {
         QFile f(m_argsFile);

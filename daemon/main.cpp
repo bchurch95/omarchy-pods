@@ -81,6 +81,13 @@ public:
         connect(m_notifier, &Notifier::enabledChanged, this, &AirPodsTrayApp::notificationsEnabledChanged);
         connect(m_deviceInfo, &DeviceInfo::batteryStatusChanged, this, &AirPodsTrayApp::checkLowBatteryThresholds);
 
+        // Headless has no tray to take the fallback, so say so rather than dropping the toast silently.
+        if (headless) {
+            connect(m_notifier, &Notifier::fallbackRequested, this, [](const QString &title, const QString &message) {
+                LOG_WARN("omarchy is not on PATH, so this notification went nowhere: " << title << " " << message);
+            });
+        }
+
         // A headless run has no QSystemTrayIcon, which is what keeps Qt Widgets and Gui off this process.
         if (!headless) {
             trayManager = new TrayIconManager(this);
@@ -1513,7 +1520,7 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setApplicationName("openpods");
     QCoreApplication::setOrganizationName("openpods");
 
-    // QApplication's constructor is what pages Qt Gui, Widgets, Qml and Quick into this process.
+    // Constructing QApplication is what pages most of Qt Gui, Widgets, Qml and Quick in; linking them still costs.
     std::unique_ptr<QCoreApplication> appOwner;
     if (headless) {
         appOwner = std::make_unique<QCoreApplication>(argc, argv);
@@ -1731,10 +1738,17 @@ int main(int argc, char *argv[]) {
                          clientSocket, [clientSocket, enginePtr, trayAppPtr]() {
             QString msg = clientSocket->readAll();
             if (msg == "reopen") {
-                LOG_INFO("Reopening app window");
                 trayAppPtr->incReopenCallsTotal();
-                // Null engine is the headless run; loadMainModule says so and returns.
-                const auto roots = enginePtr ? enginePtr->rootObjects() : QList<QObject *>();
+                // A headless daemon has no window, and the caller deserves an answer rather than silence.
+                if (!enginePtr) {
+                    LOG_WARN("Refusing reopen: this daemon runs headless");
+                    clientSocket->write("error: this daemon runs headless and has no window\n");
+                    clientSocket->flush();
+                    clientSocket->disconnectFromServer();
+                    return;
+                }
+                LOG_INFO("Reopening app window");
+                const auto roots = enginePtr->rootObjects();
                 if (!roots.isEmpty()) {
                     QMetaObject::invokeMethod(roots.first(), "reopen", Q_ARG(QVariant, "app"));
                 } else {

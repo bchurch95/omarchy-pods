@@ -147,6 +147,11 @@ reverse-engineered Apple's AAP protocol over L2CAP and the BLE advertisement
 path that carries battery, in-ear and case lid state. The daemon in `daemon/` is
 a modified copy of his work, and this panel is a display for it.
 
+## Support
+
+If this saved you an afternoon, you can
+[buy me a coffee](https://buymeacoffee.com/thisisgm).
+
 ## Licence
 
 Two programs live here, and they are licensed separately because they are

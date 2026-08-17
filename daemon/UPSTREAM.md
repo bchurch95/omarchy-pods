@@ -37,10 +37,12 @@ matter to this widget:
 - **A systemd user unit**, bound to `graphical-session.target`.
 - **Notifications through the host desktop** rather than a Qt tray toast.
 - **A `--headless` mode**, which the systemd unit runs. It builds neither the
-  tray nor the QML engine, so Qt Gui, Widgets, Qml and Quick are never paged in.
-  Measured on the box: 46 MB resident against 61 MB for the same binary under
-  `--hide`. Toasts moved to a `Notifier` so they survive without a tray, and
-  `--hide` is untouched and can still open the window later.
+  tray nor the QML engine, so most of Qt Gui, Widgets, Qml and Quick is never
+  paged in. Measured on the box: 46 MB resident against 61 MB for the same
+  binary under `--hide`, of which 13 MB stays resident either way because one
+  binary still links those libraries and their initialisers run regardless.
+  Toasts moved to a `Notifier` so they survive without a tray, and `--hide` is
+  untouched and can still open the window later, which headless cannot.
 - **Memory and reliability work**: the QML engine load is deferred under
   `--hide`, and the daemon no longer grabs the pods on every local playback.
 
