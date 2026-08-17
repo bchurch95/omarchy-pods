@@ -47,36 +47,36 @@ detection, drawn in Omarchy's own panel idiom.
 
 ## Requirements
 
-- A librepods daemon that publishes `$XDG_STATE_HOME/librepods/status.json` and
-  accepts the panel's control verbs, plus its `librepods-ctl` command on `PATH`.
-  **Upstream will not do.** [kavishdevar/librepods](https://github.com/kavishdevar/librepods)
-  and every AUR package built from it carry no state file, no `status` verb,
-  none of the `ca:`, `onebud:` or `adaptive:` verbs, and no AirPods Pro 3 model
-  map, so the panel would stay hidden forever. Build
-  [thisisgm/librepods](https://github.com/thisisgm/librepods), a fork of it that
-  adds exactly those.
+- **The daemon in [`daemon/`](daemon/), built and running.** It ships in this
+  repository because nothing packaged will do: upstream librepods and every AUR
+  package built from it carry no state file, no `status` verb, none of the
+  `ca:`, `onebud:` or `adaptive:` verbs, and no AirPods Pro 3 model map, so the
+  panel would stay hidden forever. See [daemon/UPSTREAM.md](daemon/UPSTREAM.md)
+  for what it is, who wrote it and what was changed.
 - AirPods paired to the machine through the usual Bluetooth flow.
 
-The plugin does not poll. The daemon writes that file whenever its state
-changes and removes it when it stops, and the panel watches it, so an idle
-desktop runs no processes at all on its behalf. `librepods-ctl` is used only
-when you actually change something.
+```bash
+cd daemon && cmake -B build -G Ninja && cmake --build build
+systemctl --user enable --now librepods.service
+```
+
+The plugin does not poll. The daemon writes its status to
+`$XDG_STATE_HOME/librepods/status.json` whenever that status changes, and
+removes the file when it stops. The panel watches it, so an idle desktop runs no
+processes at all on its behalf. `librepods-ctl` is used only when you actually
+change something.
 
 The plugin never talks to Bluetooth itself. If `librepods-ctl` is missing or
 the daemon is not running, the panel says so in one line instead of drawing an
 empty surface.
 
-librepods ships `linux/librepods.service`, a systemd user unit bound to
-`graphical-session.target`, so the daemon comes back after a reboot:
-
-```bash
-systemctl --user enable --now librepods.service
-```
+The daemon ships a systemd user unit bound to `graphical-session.target`, so
+it comes back after a reboot.
 
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/thisisgm/omapods --enable
+omarchy plugin add https://github.com/thisisgm/omarchy-pods --enable
 omarchy bar move io.github.thisisgm.omapods
 ```
 
@@ -127,11 +127,23 @@ deno run --allow-read tests/model.test.js
 
 ## Credits
 
-The hard part is not this panel, it is [librepods](https://github.com/kavishdevar/librepods)
-by Kavish Devar, which reverse-engineered Apple's AAP protocol over L2CAP and
-the BLE advertisement path that carries case and lid state. omapods is a
-display for it.
+The hard part is not this panel. It is
+[librepods](https://github.com/kavishdevar/librepods) by **Kavish Devar**, which
+reverse-engineered Apple's AAP protocol over L2CAP and the BLE advertisement
+path that carries battery, in-ear and case lid state. The daemon in `daemon/` is
+a modified copy of his work, and this panel is a display for it.
 
-## License
+## Licence
 
-MIT. See [LICENSE](LICENSE).
+Two programs live here, and they are licensed separately because they are
+separate works that talk over a state file and a command line.
+
+| Path | Licence | |
+|---|---|---|
+| repository root, the bar widget | MIT | [LICENSE](LICENSE) |
+| `daemon/`, a modified copy of librepods | GPL-3.0 | [daemon/LICENSE](daemon/LICENSE) |
+
+Shipping both in one repository is aggregation, not combination, so the widget
+stays MIT and the daemon stays GPL-3.0. What was modified, and the upstream
+commit it was forked from, are recorded in
+[daemon/UPSTREAM.md](daemon/UPSTREAM.md).
