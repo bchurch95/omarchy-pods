@@ -47,11 +47,6 @@
 | <img src="docs/panel-transparency.png" alt="Transparency"><br>Transparency | <img src="docs/panel-one-bud.png" alt="One pod in the case"><br>One pod in the case, lid open, One-Bud ANC on |
 | <img src="docs/panel-in-case.png" alt="Both pods in the case"><br>Both pods charging, lid closed | <img src="docs/panel-daemon-down.png" alt="Daemon not running"><br>librepods not running |
 
-<p align="center">
-  <img src="docs/panel-live.png" alt="The panel against a real AirPods Pro 3" width="360"><br>
-  <em>Against a real AirPods Pro 3</em>
-</p>
-
 ## Requirements
 
 - **The daemon in [`daemon/`](daemon/), built and running.** It ships in this
@@ -62,7 +57,7 @@
   for what it is, who wrote it and what was changed. Install builds it.
 - AirPods paired to the machine through the usual Bluetooth flow.
 
-### How it works
+## How it works
 
 The plugin does not poll. The daemon writes its status to
 `$XDG_STATE_HOME/librepods/status.json` whenever that status changes, and
@@ -81,9 +76,8 @@ omarchy plugin add https://github.com/thisisgm/omarchy-pods --enable
 omarchy bar move io.github.thisisgm.omapods
 ```
 
-The listing is at
-[omarchyplugins.com](https://omarchyplugins.com/plugin.html?id=io.github.thisisgm.omapods),
-and installs from there land in the same place.
+The [marketplace listing](https://omarchyplugins.com/plugin.html?id=io.github.thisisgm.omapods)
+installs to the same place.
 
 Then build the daemon out of the copy that just cloned, and hand it to systemd.
 Building it needs `cmake`, `ninja`, `qt6-connectivity`, `qt6-tools`,
@@ -96,10 +90,10 @@ cmake --install build --prefix ~/.local
 systemctl --user enable --now librepods.service
 ```
 
-`~/.local` is the prefix the unit expects, because it runs `%h/.local/bin/librepods`,
-and Omarchy already puts `~/.local/bin` on `PATH`, which is where the panel finds
-`librepods-ctl`. The unit is bound to `graphical-session.target`, so the daemon
-comes back after a reboot.
+`~/.local` is the prefix the unit expects, because it runs
+`%h/.local/bin/librepods`, and Omarchy already puts `~/.local/bin` on `PATH`,
+which is where the panel finds `librepods-ctl`. The unit is bound to
+`graphical-session.target`, so the daemon comes back after a reboot.
 
 ## Remove
 
