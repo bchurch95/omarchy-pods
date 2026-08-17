@@ -82,6 +82,20 @@ openpods_add_test(tst_notifier
     ../notifier.hpp
 )
 
+# The exception to the no-binary rule above: this runs the real librepods-ctl
+# as a child against a stub QLocalServer, which is the only way to pin its exit
+# codes. librepods-ctl links neither BlueZ nor PulseAudio nor Widgets.
+openpods_add_test(tst_ctl
+    tst_ctl.cpp
+    ../ipcpath.hpp
+)
+find_package(Qt6 REQUIRED COMPONENTS Network)
+target_link_libraries(tst_ctl PRIVATE Qt6::Network)
+target_compile_definitions(tst_ctl PRIVATE
+    OPENPODS_CTL_BINARY="$<TARGET_FILE:librepods-ctl>"
+)
+add_dependencies(tst_ctl librepods-ctl)
+
 # Stochastic stress over protocol parsers — pulls in ble/bleutils
 # which itself wants OpenSSL EVP for AES round-trips. Skipping AUTOMOC
 # headers we don't need; bleutils.h is a free function header.
