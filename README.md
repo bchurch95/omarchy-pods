@@ -1,8 +1,7 @@
 <h1 align="center">AirPods for Omarchy</h1>
 
 <p align="center">
-  Battery for each pod and the case, the listening modes, adaptive noise level,
-  Conversation Awareness, One-Bud ANC and ear detection, drawn in Omarchy's own panel idiom.
+  Battery for each pod and the case, the listening modes, adaptive noise level, Conversation Awareness, One-Bud ANC and ear detection, drawn in Omarchy's own panel idiom.
 </p>
 
 <p align="center">
