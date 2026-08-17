@@ -46,8 +46,8 @@
 | | |
 |:---:|:---:|
 | <img src="docs/panel-noise-cancellation.png" alt="Noise Cancellation"><br>Noise Cancellation, both pods in | <img src="docs/panel-adaptive.png" alt="Adaptive"><br>Adaptive, with the noise level and Conversation Awareness on |
-| <img src="docs/panel-one-bud.png" alt="One pod out"><br>One pod out of the case, lid open | <img src="docs/panel-in-case.png" alt="Both pods in the case"><br>Both pods charging, lid closed |
-| <img src="docs/panel-low-battery.png" alt="Low battery"><br>Low battery | <img src="docs/panel-daemon-down.png" alt="Daemon not running"><br>librepods not running |
+| <img src="docs/panel-transparency.png" alt="Transparency"><br>Transparency | <img src="docs/panel-one-bud.png" alt="One pod in the case"><br>One pod in the case, lid open, One-Bud ANC on |
+| <img src="docs/panel-in-case.png" alt="Both pods in the case"><br>Both pods charging, lid closed | <img src="docs/panel-daemon-down.png" alt="Daemon not running"><br>librepods not running |
 
 <p align="center">
   <img src="docs/panel-live.png" alt="The panel against a real AirPods Pro 3" width="360"><br>
