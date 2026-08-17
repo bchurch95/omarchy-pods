@@ -37,7 +37,9 @@ int main(int argc, char *argv[]) {
     }
 
     const QByteArray cmd = QByteArray(argv[1]);
+    // reopen is the only other verb the daemon can refuse, and its refusal is a reply.
     const bool wantsStatus = (cmd == "status");
+    const bool wantsReply = wantsStatus || (cmd == "reopen");
 
     const QString ipcPath = OpenPods::Ipc::socketPath();
     if (ipcPath.isEmpty()) {
@@ -62,16 +64,22 @@ int main(int argc, char *argv[]) {
     // headroom without making the CLI feel laggy.
     socket.waitForBytesWritten(500);
 
-    if (wantsStatus) {
+    if (wantsReply) {
         // Daemon writes one JSON line then half-closes. Wait briefly
         // for the response before tearing the socket down, otherwise
         // the read silently returns empty.
         if (!socket.waitForReadyRead(1000)) {
-            QTextStream(stderr) << "Timed out waiting for status reply\n";
+            QTextStream(stderr) << "Timed out waiting for a reply to " << cmd << "\n";
             socket.disconnectFromServer();
             return 1;
         }
         const QByteArray reply = socket.readAll();
+        // A headless daemon refuses reopen with an error line rather than a status object.
+        if (reply.startsWith("error:")) {
+            QTextStream(stderr) << QString::fromUtf8(reply);
+            socket.disconnectFromServer();
+            return 1;
+        }
         QTextStream(stdout) << QString::fromUtf8(reply);
     }
 
