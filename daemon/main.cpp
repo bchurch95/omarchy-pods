@@ -1825,10 +1825,7 @@ int main(int argc, char *argv[]) {
                          clientSocket, &QLocalSocket::deleteLater);
     });
 
-    QObject::connect(serverPtr, &QLocalServer::serverError,
-                     serverPtr, [serverPtr]() {
-        LOG_ERROR("Server error: " << serverPtr->errorString());
-    });
+    // No error handler here: newConnection is QLocalServer's only signal, so the failed listen above is the only error it reports.
 
     QObject::connect(&app, &QCoreApplication::aboutToQuit,
                      serverPtr, [serverPtr, ipcPath]() {
