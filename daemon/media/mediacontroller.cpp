@@ -113,6 +113,16 @@ void MediaController::handleEarDetection(EarDetection *earDetection)
 
 void MediaController::setEarDetectionBehavior(EarDetectionBehavior behavior)
 {
+  if (earDetectionBehavior == behavior)
+  {
+    LOG_DEBUG("Ear detection behavior is already set to: " << behavior);
+    return;
+  }
+
+  // A delayed both-out callback belongs to the policy that scheduled it.
+  // Invalidate it before changing policy so disable/re-enable transitions
+  // cannot revive stale pause or output-removal work.
+  ++m_earDetectionGeneration;
   earDetectionBehavior = behavior;
   LOG_INFO("Set ear detection behavior to: " << behavior);
 }
