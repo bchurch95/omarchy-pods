@@ -16,6 +16,7 @@ public:
     ~BluetoothMonitor() override;
 
     bool checkAlreadyConnectedDevices();
+    bool isDeviceConnected(const QString &macAddress);
 
 signals:
     void deviceConnected(const QString &macAddress, const QString &deviceName);

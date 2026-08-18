@@ -112,6 +112,38 @@ bool BluetoothMonitor::checkAlreadyConnectedDevices()
     return deviceFound;
 }
 
+bool BluetoothMonitor::isDeviceConnected(const QString &macAddress)
+{
+    if (macAddress.isEmpty() || !m_dbus.isConnected()) {
+        return false;
+    }
+
+    QDBusInterface objectManager("org.bluez", "/", "org.freedesktop.DBus.ObjectManager", m_dbus);
+    const QDBusMessage reply = objectManager.call("GetManagedObjects");
+    if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().isEmpty()) {
+        LOG_WARN("Failed to query BlueZ connection state for " << macAddress
+                 << ": " << reply.errorMessage());
+        return false;
+    }
+
+    const QDBusArgument arg = reply.arguments().constFirst().value<QDBusArgument>();
+    ManagedObjectList managedObjects;
+    arg >> managedObjects;
+
+    for (auto it = managedObjects.constBegin(); it != managedObjects.constEnd(); ++it) {
+        const QVariantMap deviceProps = it.value().value("org.bluez.Device1");
+        if (deviceProps.isEmpty()) {
+            continue;
+        }
+        if (deviceProps.value("Address").toString().compare(macAddress, Qt::CaseInsensitive) != 0) {
+            continue;
+        }
+        return deviceProps.value("Connected").toBool();
+    }
+
+    return false;
+}
+
 void BluetoothMonitor::onPropertiesChanged(const QDBusMessage &message)
 {
     // Filter at the path level: only BlueZ Device1 objects, never the

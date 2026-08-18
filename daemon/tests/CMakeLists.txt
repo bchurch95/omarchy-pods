@@ -62,6 +62,11 @@ openpods_add_test(tst_lowbatterywatcher
     ../lowbatterywatcher.hpp
 )
 
+openpods_add_test(tst_controlreconnect
+    tst_controlreconnect.cpp
+    ../controlreconnect.hpp
+)
+
 openpods_add_test(tst_snaptogrid
     tst_snaptogrid.cpp
     ../snaptogrid.hpp
