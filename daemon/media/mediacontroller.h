@@ -59,6 +59,7 @@ private:
   MediaState mediaStateFromPlayerctlOutput(const QString &output) const;
   QString getAudioDeviceName();
   QStringList getPlayingMediaPlayers();
+  bool activateA2dpProfile(bool allowWirePlumberRestart);
   void attemptA2dpActivation(const QString &macAddress, quint64 generation, int attempt);
 
   QStringList pausedByAppServices;

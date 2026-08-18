@@ -274,6 +274,10 @@ bool MediaController::restartWirePlumber() {
 }
 
 bool MediaController::activateA2dpProfile() {
+  return activateA2dpProfile(/*allowWirePlumberRestart=*/true);
+}
+
+bool MediaController::activateA2dpProfile(bool allowWirePlumberRestart) {
   if (connectedDeviceMacAddress.isEmpty() || m_deviceOutputName.isEmpty()) {
     // Common right after connect: BlueZ has the device but PipeWire/
     // WirePlumber hasn't published the bluez5 card object yet. This is
@@ -284,6 +288,14 @@ bool MediaController::activateA2dpProfile() {
   }
 
   if (!isA2dpProfileAvailable()) {
+    if (!allowWirePlumberRestart) {
+      // Already restarted WirePlumber once for this retry chain (see
+      // attemptA2dpActivation). Restarting again on every subsequent
+      // attempt would block this thread for ~2s each time without the
+      // card having had a chance to settle in between.
+      LOG_WARN("A2DP profile still not available, not restarting WirePlumber again this chain");
+      return false;
+    }
     LOG_WARN("A2DP profile not available, attempting to restart WirePlumber");
     if (restartWirePlumber()) {
       m_deviceOutputName = getAudioDeviceName();
@@ -353,8 +365,11 @@ void MediaController::attemptA2dpActivation(const QString &macAddress, quint64 g
   // PipeWire/WirePlumber publish the bluez5 card for a freshly-connected
   // device asynchronously, with no fixed timing guarantee, so the first
   // attempt or two commonly fail with the card simply not existing yet.
+  // A WirePlumber restart (see activateA2dpProfile) blocks this thread
+  // for ~2s, so only the first attempt in a chain is allowed to trigger
+  // one; later attempts just re-resolve and re-check.
   setConnectedDeviceMacAddress(macAddress);
-  if (activateA2dpProfile()) {
+  if (activateA2dpProfile(/*allowWirePlumberRestart=*/attempt == 0)) {
     LOG_INFO("A2DP profile activated (attempt " << (attempt + 1) << ")");
     return;
   }
