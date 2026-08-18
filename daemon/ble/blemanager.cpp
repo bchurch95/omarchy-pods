@@ -127,8 +127,11 @@ void BleManager::onDeviceDiscovered(const QBluetoothDeviceInfo &info)
     if (info.manufacturerData().contains(0x004C))
     {
         QByteArray data = info.manufacturerData().value(0x004C);
-        // Ensure data is long enough and starts with prefix 0x07 (indicates Proximity Pairing Message)
-        if (data.size() >= 10 && data[0] == 0x07)
+        // Ensure data is long enough and starts with prefix 0x07 (indicates Proximity Pairing Message).
+        // The fixed header runs through data[10] (11 bytes) and is followed by a 16-byte encrypted
+        // payload, so 27 is the real minimum; a size-only check against a lower bound (e.g. 10) let a
+        // forged advertisement from any nearby BLE device reach the data[10] read below out of bounds.
+        if (data.size() >= 27 && data[0] == 0x07)
         {
             QString address = info.address().toString();
             BleInfo deviceInfo;
