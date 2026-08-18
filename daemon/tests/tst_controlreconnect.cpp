@@ -27,6 +27,41 @@ private slots:
         QVERIFY(!ControlReconnect::hasAttemptRemaining(3, 3));
         QVERIFY(!ControlReconnect::hasAttemptRemaining(0, 0));
     }
+
+    void tracksRecoveryLifecycle()
+    {
+        ControlReconnect::Session session;
+        session.begin(true);
+        QCOMPARE(session.state(), ControlReconnect::State::Waiting);
+
+        const auto firstProbe = session.beginProbe();
+        QVERIFY(session.acceptsProbe(firstProbe));
+        session.beginConnection();
+        QVERIFY(!session.acceptsProbe(firstProbe));
+        QCOMPARE(session.state(), ControlReconnect::State::ConnectingSocket);
+
+        QVERIFY(session.prepareRetry(3));
+        QCOMPARE(session.completedAttempts(), 1);
+        QCOMPARE(session.state(), ControlReconnect::State::Waiting);
+
+        const auto secondProbe = session.beginProbe();
+        QVERIFY(session.acceptsProbe(secondProbe));
+        QVERIFY(!session.acceptsProbe(firstProbe));
+        QVERIFY(session.complete());
+        QCOMPARE(session.state(), ControlReconnect::State::Idle);
+        QVERIFY(!session.acceptsProbe(secondProbe));
+    }
+
+    void exhaustsSharedRetryBudget()
+    {
+        ControlReconnect::Session session;
+        session.begin(false);
+        QVERIFY(session.prepareRetry(2));
+        QVERIFY(session.prepareRetry(2));
+        QVERIFY(!session.prepareRetry(2));
+        QCOMPARE(session.completedAttempts(), 2);
+        QVERIFY(!session.complete());
+    }
 };
 
 QTEST_GUILESS_MAIN(TestControlReconnect)

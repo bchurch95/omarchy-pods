@@ -16,11 +16,13 @@ public:
     ~BluetoothMonitor() override;
 
     bool checkAlreadyConnectedDevices();
-    bool isDeviceConnected(const QString &macAddress);
+    void probeDeviceConnected(const QString &macAddress, quint64 requestId);
 
 signals:
     void deviceConnected(const QString &macAddress, const QString &deviceName);
     void deviceDisconnected(const QString &macAddress, const QString &deviceName);
+    void deviceConnectionProbeFinished(const QString &macAddress, quint64 requestId,
+                                       bool connected);
 
 private slots:
     // Receive the raw QDBusMessage so we can read message.path() reliably
