@@ -273,10 +273,14 @@ bool MediaController::restartWirePlumber() {
   }
 }
 
-void MediaController::activateA2dpProfile() {
+bool MediaController::activateA2dpProfile() {
   if (connectedDeviceMacAddress.isEmpty() || m_deviceOutputName.isEmpty()) {
+    // Common right after connect: BlueZ has the device but PipeWire/
+    // WirePlumber hasn't published the bluez5 card object yet. This is
+    // not fatal — callers retry on false, re-resolving the card name
+    // via setConnectedDeviceMacAddress() on the next attempt.
     LOG_WARN("Connected device MAC address or output name is empty, cannot activate A2DP profile");
-    return;
+    return false;
   }
 
   if (!isA2dpProfileAvailable()) {
@@ -285,18 +289,18 @@ void MediaController::activateA2dpProfile() {
       m_deviceOutputName = getAudioDeviceName();
       if (!isA2dpProfileAvailable()) {
         LOG_ERROR("A2DP profile still not available after WirePlumber restart");
-        return;
+        return false;
       }
     } else {
       LOG_ERROR("Could not restart WirePlumber, A2DP profile unavailable");
-      return;
+      return false;
     }
   }
 
   QString preferredProfile = getPreferredA2dpProfile();
   if (preferredProfile.isEmpty()) {
     LOG_ERROR("No suitable A2DP profile found");
-    return;
+    return false;
   }
 
   // Re-applying the profile WirePlumber already set tears down the live sink under a playing stream.
@@ -307,7 +311,7 @@ void MediaController::activateA2dpProfile() {
     LOG_INFO("Activating best output profile: " << preferredProfile);
     if (!m_pulseAudio->setCardProfile(m_deviceOutputName, preferredProfile)) {
       LOG_ERROR("Failed to activate profile: " << preferredProfile);
-      return;
+      return false;
     }
     LOG_INFO("Profile activated: " << preferredProfile);
   }
@@ -322,6 +326,8 @@ void MediaController::activateA2dpProfile() {
   if (!sink.isEmpty() && sink.contains(connectedDeviceMacAddress)) {
     m_pulseAudio->enableVolumeSnap(sink, 5);
   }
+
+  return true;
 }
 
 QString MediaController::getActiveProfile() {
