@@ -149,7 +149,7 @@ public:
                 {
                     QString formattedAddress = address.toString().replace(":", "_");
                     LOG_INFO("A2DP profile activation attempted for AirPods found on startup");
-                    activateA2dpProfileWithRetry(formattedAddress);
+                    mediaController->activateA2dpProfileWithRetry(formattedAddress);
                 });
                 return;
             }
@@ -244,37 +244,6 @@ private:
 
     void disconnectDevice(const QString &devicePath) {
         LOG_INFO("Disconnecting device at " << devicePath);
-    }
-
-    // PipeWire/WirePlumber publish the bluez5 card for a freshly-connected
-    // device asynchronously, on no fixed schedule — a single delayed
-    // attempt can fire before the card exists, silently leaving the
-    // AirPods stuck on the "off" profile (mic-only via headset-head-unit,
-    // no output sink). Poll with backoff instead of a one-shot timer.
-    void activateA2dpProfileWithRetry(const QString &formattedAddress, int attempt = 0)
-    {
-        static constexpr int kMaxAttempts = 6;
-        static constexpr int kDelayMs = 1500;
-
-        if (formattedAddress.isEmpty() || !mediaController) return;
-
-        mediaController->setConnectedDeviceMacAddress(formattedAddress);
-        if (mediaController->activateA2dpProfile())
-        {
-            LOG_INFO("A2DP profile activated (attempt " << (attempt + 1) << ")");
-            return;
-        }
-
-        if (attempt + 1 >= kMaxAttempts)
-        {
-            LOG_ERROR("Giving up on A2DP profile activation after " << kMaxAttempts << " attempts");
-            return;
-        }
-
-        QTimer::singleShot(kDelayMs, this, [this, formattedAddress, attempt]()
-        {
-            activateA2dpProfileWithRetry(formattedAddress, attempt + 1);
-        });
     }
 
 public slots:
@@ -738,7 +707,7 @@ public slots:
                 // Profile may have been dropped during suspend; reassert.
                 QTimer::singleShot(1000, this, [this]() {
                     LOG_INFO("A2DP profile activation attempted after system wake-up");
-                    activateA2dpProfileWithRetry(m_deviceInfo->bluetoothAddress().replace(":", "_"));
+                    mediaController->activateA2dpProfileWithRetry(m_deviceInfo->bluetoothAddress().replace(":", "_"));
                 });
             }
 
@@ -816,7 +785,7 @@ private slots:
                 QString formattedAddress = address;
                 formattedAddress = formattedAddress.replace(":", "_");
                 LOG_INFO("A2DP profile activation attempted for newly connected device");
-                activateA2dpProfileWithRetry(formattedAddress);
+                mediaController->activateA2dpProfileWithRetry(formattedAddress);
             }
         });
     }
@@ -824,6 +793,12 @@ private slots:
     void onDeviceDisconnected(const QBluetoothAddress &address)
     {
         LOG_INFO("Device disconnected: " << address.toString());
+        // A retry queued by an in-flight A2DP activation chain must not
+        // fire after this disconnect and restore/reactivate a profile for
+        // a device that just went away.
+        if (mediaController) {
+            mediaController->cancelPendingA2dpActivation();
+        }
         if (socket)
         {
             LOG_WARN("Socket is still open, closing it");
@@ -1091,7 +1066,7 @@ private slots:
             initiateMagicPairing();
             if (m_deviceInfo->getEarDetection()->oneOrMorePodsInEar()) // AirPods get added as output device only after this
             {
-                activateA2dpProfileWithRetry(m_deviceInfo->bluetoothAddress().replace(":", "_"));
+                mediaController->activateA2dpProfileWithRetry(m_deviceInfo->bluetoothAddress().replace(":", "_"));
             }
             else
             {

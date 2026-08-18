@@ -105,7 +105,7 @@ void MediaController::handleEarDetection(EarDetection *earDetection)
 
   // Then handle device profile switching, with both pods out already returned above
   LOG_DEBUG("At least one AirPod is in ear");
-  activateA2dpProfile();
+  activateA2dpProfileWithRetry(connectedDeviceMacAddress);
 
   // Resume if conditions are met and we previously paused
   if (shouldResume && !pausedByAppServices.isEmpty() && isActiveOutputDeviceAirPods())
@@ -330,17 +330,62 @@ bool MediaController::activateA2dpProfile() {
   return true;
 }
 
+void MediaController::activateA2dpProfileWithRetry(const QString &macAddress) {
+  if (macAddress.isEmpty()) return;
+
+  // A fresh generation supersedes any chain already in flight for a
+  // previous connect/wake/metadata event, so only the newest request's
+  // queued callbacks will still act.
+  const quint64 generation = ++m_a2dpRetryGeneration;
+  attemptA2dpActivation(macAddress, generation, 0);
+}
+
+void MediaController::cancelPendingA2dpActivation() {
+  ++m_a2dpRetryGeneration;
+}
+
+void MediaController::attemptA2dpActivation(const QString &macAddress, quint64 generation, int attempt) {
+  // Superseded by a newer activation request, or the device disconnected
+  // via cancelPendingA2dpActivation() -- don't restore a stale MAC address
+  // or reactivate a profile for a device that's no longer current.
+  if (generation != m_a2dpRetryGeneration) return;
+
+  // PipeWire/WirePlumber publish the bluez5 card for a freshly-connected
+  // device asynchronously, with no fixed timing guarantee, so the first
+  // attempt or two commonly fail with the card simply not existing yet.
+  setConnectedDeviceMacAddress(macAddress);
+  if (activateA2dpProfile()) {
+    LOG_INFO("A2DP profile activated (attempt " << (attempt + 1) << ")");
+    return;
+  }
+
+  static constexpr int kMaxAttempts = 6;
+  static constexpr int kDelayMs = 1500;
+  if (attempt + 1 >= kMaxAttempts) {
+    LOG_ERROR("Giving up on A2DP profile activation after " << kMaxAttempts << " attempts");
+    return;
+  }
+
+  QTimer::singleShot(kDelayMs, this, [this, macAddress, generation, attempt]() {
+    attemptA2dpActivation(macAddress, generation, attempt + 1);
+  });
+}
+
 QString MediaController::getActiveProfile() {
   if (m_deviceOutputName.isEmpty()) return QString();
   return m_pulseAudio->getActiveCardProfile(m_deviceOutputName);
 }
 
 void MediaController::removeAudioOutputDevice() {
+  // A retry queued by a still-in-flight activation chain must not
+  // resurrect the sink right after we tear it down here.
+  cancelPendingA2dpActivation();
+
   if (connectedDeviceMacAddress.isEmpty() || m_deviceOutputName.isEmpty()) {
     LOG_WARN("Connected device MAC address or output name is empty, cannot remove audio output device");
     return;
   }
-  
+
   LOG_INFO("Removing AirPods as audio output device");
   // Disable AVRCP volume snap before the sink goes away. Empty
   // sink-name argument disables the snap path inside
