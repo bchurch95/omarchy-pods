@@ -647,6 +647,19 @@ public slots:
     int loadRetryAttempts() const { return m_settings->value("bluetooth/retryAttempts", 3).toInt(); }
     void saveRetryAttempts(int attempts) { m_settings->setValue("bluetooth/retryAttempts", attempts); }
 
+    void stopBleScanWhileConnected()
+    {
+        if (!areAirpodsConnected() || !m_bleManager->isScanning())
+            return;
+
+        // This controller carries A2DP and BLE on the same radio. Continuous
+        // discovery while audio is active coincides with malformed advertising
+        // reports and missing A2DP completion reports on this Broadcom
+        // controller, so favor uninterrupted audio once the AAP link is live.
+        LOG_INFO("Stopping BLE scan while AirPods control link is connected");
+        m_bleManager->stopScan();
+    }
+
     void onSystemGoingToSleep()
     {
         m_isSuspending = true;
@@ -668,10 +681,9 @@ public slots:
         // the disconnect notifications that BlueZ fires during resume
         // don't surface as user-visible "AirPods Disconnected" toasts.
         QTimer::singleShot(2000, this, [this]() {
-            m_bleManager->startScan();
-
             if (areAirpodsConnected() && m_deviceInfo && !m_deviceInfo->bluetoothAddress().isEmpty())
             {
+                stopBleScanWhileConnected();
                 LOG_INFO("AirPods already connected after wake-up, re-activating A2DP profile");
                 mediaController->setConnectedDeviceMacAddress(
                     m_deviceInfo->bluetoothAddress().replace(":", "_"));
@@ -681,6 +693,10 @@ public slots:
                     mediaController->activateA2dpProfile();
                     LOG_INFO("A2DP profile activation attempted after system wake-up");
                 });
+            }
+            else
+            {
+                m_bleManager->startScan();
             }
 
             monitor->checkAlreadyConnectedDevices();
@@ -901,6 +917,7 @@ private slots:
         auto handleConnection = [this, localSocket]()
         {
             m_retryCount = 0;
+            stopBleScanWhileConnected();
             connect(localSocket, &QBluetoothSocket::readyRead, this, [this, localSocket]()
                     {
             QByteArray data = localSocket->readAll();
@@ -1035,14 +1052,11 @@ private slots:
             {
                 mediaController->activateA2dpProfile();
             }
-            // BLE scan stays running even after L2CAP metadata arrives.
-            // Apple's AAP only sends case battery when a pod is docked;
-            // BLE manufacturer-data broadcasts include case battery on
-            // every lid-open / lid-close event regardless of pod
-            // position. Keeping the scan alive feeds bleDeviceFound ->
-            // Battery::setCaseFromBle so the case row in PodsMenu
-            // updates live during lid events. Cost: continuous BLE
-            // passive scan; negligible CPU.
+            // The connected AAP path provides listening controls and pod
+            // battery state. Keep BLE discovery off while that link is live
+            // so it cannot contend with A2DP; onDeviceDisconnected restarts
+            // discovery for case/lid and disconnected battery updates.
+            stopBleScanWhileConnected();
             emit airPodsStatusChanged();
         }
         else if (data.startsWith(AirPodsPackets::OneBudANCMode::HEADER)) {
@@ -1292,17 +1306,13 @@ public:
         connectToPhone();
 
         m_deviceInfo->loadFromSettings(*m_settings);
-        // Always start BLE scan regardless of L2CAP connection state.
-        // BLE advertisements carry the case-battery nibble that the
-        // L2CAP/AAP path can't see while the case lid is closed
-        // (AAP sends Component::Case with status=Disconnected in that
-        // window). setCaseFromBle in the BLE callback refreshes the
-        // case row in PodsMenu without needing the user to open the
-        // lid. Previous behavior gated scan on `!areAirpodsConnected()`
-        // so a daemon launched while pods were already in-ear would
-        // skip startScan entirely + the case battery would stay at
-        // unknown for the whole session.
-        m_bleManager->startScan();
+        // BLE advertisements remain useful while disconnected for case/lid
+        // and battery discovery. Once the AAP control link connects its
+        // handler stops this scan to protect active A2DP playback.
+        if (areAirpodsConnected())
+            stopBleScanWhileConnected();
+        else
+            m_bleManager->startScan();
     }
 
     // Null engine is the headless run, where there is no window to open and nothing to say about it.

@@ -11,6 +11,7 @@
 #include <QRegularExpression>
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
+#include <QTimer>
 
 MediaController::MediaController(QObject *parent) : QObject(parent) {
   m_pulseAudio = new PulseAudioController(this);
@@ -39,6 +40,29 @@ void MediaController::handleEarDetection(EarDetection *earDetection)
 
   bool primaryInEar = earDetection->isPrimaryInEar();
   bool secondaryInEar = earDetection->isSecondaryInEar();
+
+  // ANC/transparency changes can briefly report both pods as out of ear while
+  // the AirPods reconfigure.  Do not tear down the Bluetooth audio card for
+  // that transient state; wait for it to persist before pausing/removing it.
+  if (!primaryInEar && !secondaryInEar)
+  {
+    const quint64 generation = ++m_earDetectionGeneration;
+    QTimer::singleShot(1200, this, [this, earDetection, generation]() {
+      if (generation != m_earDetectionGeneration || earDetectionBehavior == Disabled)
+        return;
+
+      if (earDetection->isPrimaryInEar() || earDetection->isSecondaryInEar())
+        return;
+
+      if (isActiveOutputDeviceAirPods() && getCurrentMediaState() == Playing)
+        pause();
+      removeAudioOutputDevice();
+    });
+    return;
+  }
+
+  // Any in-ear report supersedes a pending transient both-out report.
+  ++m_earDetectionGeneration;
 
   LOG_DEBUG("Ear detection status: primaryInEar="
             << primaryInEar << ", secondaryInEar=" << secondaryInEar
@@ -263,12 +287,21 @@ void MediaController::activateA2dpProfile() {
     return;
   }
 
-  LOG_INFO("Activating best output profile: " << preferredProfile);
-  if (!m_pulseAudio->setCardProfile(m_deviceOutputName, preferredProfile)) {
-    LOG_ERROR("Failed to activate profile: " << preferredProfile);
-    return;
+  // WirePlumber already owns profile negotiation.  Re-applying the same
+  // profile on every Bluetooth/AAP notification tears down the live sink and
+  // can interrupt active streams (and may race WirePlumber's codec setup).
+  // Only change the card when it is not already using the profile we chose.
+  const QString activeProfile = m_pulseAudio->getActiveCardProfile(m_deviceOutputName);
+  if (activeProfile == preferredProfile) {
+    LOG_INFO("A2DP profile already active: " << activeProfile);
+  } else {
+    LOG_INFO("Activating best output profile: " << preferredProfile);
+    if (!m_pulseAudio->setCardProfile(m_deviceOutputName, preferredProfile)) {
+      LOG_ERROR("Failed to activate profile: " << preferredProfile);
+      return;
+    }
+    LOG_INFO("Profile activated: " << preferredProfile);
   }
-  LOG_INFO("Profile activated: " << preferredProfile);
 
   // After A2DP activation the AirPods sink is live + selected as
   // default. Enable AVRCP 5%-grid snap on it now. AirPods stem-
