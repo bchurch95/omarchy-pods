@@ -242,9 +242,20 @@ Panel {
               width: parent.width
               spacing: Style.space(6)
 
-              PodRow { width: parent.width; label: "Left"; pod: pods.leftPod }
-              PodRow { width: parent.width; label: "Right"; pod: pods.rightPod }
+              // A Max has one battery and no case, so the pod trio would draw two
+              // dashes and a phantom flat case. Column skips invisible children,
+              // so only the shape the hardware actually has takes up space.
               PodRow {
+                visible: pods.isHeadset
+                width: parent.width
+                label: "Headphones"
+                wideLabel: true
+                pod: ({ level: pods.headsetBattery.level, charging: pods.headsetBattery.charging, inEar: false })
+              }
+              PodRow { visible: !pods.isHeadset; width: parent.width; label: "Left"; pod: pods.leftPod }
+              PodRow { visible: !pods.isHeadset; width: parent.width; label: "Right"; pod: pods.rightPod }
+              PodRow {
+                visible: !pods.isHeadset
                 width: parent.width
                 label: "Case"
                 pod: ({ level: pods.caseBattery.level, charging: pods.caseBattery.charging, inEar: false })
@@ -382,6 +393,8 @@ Panel {
     property string label: ""
     property var pod: Model.defaultPod()
     property string meta: ""
+    // Only set by a row whose label does not fit the column cut for Left/Right/Case.
+    property bool wideLabel: false
 
     readonly property string metaText: meta !== "" ? meta : Model.podMeta(pod)
     readonly property bool low: pod.level !== Model.LEVEL_UNKNOWN
@@ -402,7 +415,12 @@ Panel {
         opacity: 0.6
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
-        Layout.preferredWidth: Style.space(44)
+        // The fixed 44 was cut for Left, Right and Case. A longer label such as
+        // Headphones overflows under the meter, so that row opts in to a column
+        // wide enough for its text; every earbud row keeps the original binding
+        // untouched rather than being resized in sympathy.
+        Layout.preferredWidth: podRow.wideLabel ? Math.max(Style.space(44), implicitWidth + Style.space(10))
+                                                : Style.space(44)
       }
 
       Rectangle {

@@ -158,6 +158,73 @@ private slots:
         QVERIFY(b.isCaseAvailable());
         QCOMPARE(b.getCaseLevel(), quint8(80));
     }
+
+    // A headset keeps its single battery in payload byte 1, but isLeftPodPrimary
+    // flips when the headphones come off, which renames that byte from the left
+    // slot to the right one. Following the mapping made the level look like it had
+    // moved to a slot reading 0 -- not the 0x7F that means unknown -- so the panel
+    // flickered 100% -> 0% -> 100% on every off/on. Observed on AirPods Max
+    // (USB-C, A3184): rawByte1 held 100 across both states while primaryLeft went
+    // true -> false.
+    void encryptedHeadset_levelSurvivesThePrimaryFlip()
+    {
+        Battery b;
+        QVERIFY(b.parseEncryptedPacket(payload(100, 0, 0), true, false, true));
+        QCOMPARE(b.getHeadsetLevel(), quint8(100));
+
+        // Same bytes, primary flipped: the reading must not move.
+        QVERIFY(b.parseEncryptedPacket(payload(100, 0, 0), false, false, true));
+        QVERIFY(b.isHeadsetAvailable());
+        QCOMPARE(b.getHeadsetLevel(), quint8(100));
+    }
+
+    // The unused slot reads 0, so 0 must not be filtered as "unknown" -- an empty
+    // headset has to be able to report itself empty.
+    void encryptedHeadsetZero_isARealReading()
+    {
+        Battery b;
+        QVERIFY(b.parseEncryptedPacket(payload(0, 0, 0), true, false, true));
+        QVERIFY(b.isHeadsetAvailable());
+        QCOMPARE(b.getHeadsetLevel(), quint8(0));
+    }
+
+    void encryptedHeadsetUnknown_leavesTheKnownLevelAlone()
+    {
+        Battery b;
+        QVERIFY(b.parsePacket(headsetPacket(100)));
+        QCOMPARE(b.getHeadsetLevel(), quint8(100));
+
+        // 0x7F is the documented unknown marker; a level already established over
+        // the AAP battery packet outlives it.
+        QVERIFY(b.parseEncryptedPacket(payload(0x7F, 100, 0), true, false, true));
+        QCOMPARE(b.getHeadsetLevel(), quint8(100));
+    }
+
+    void encryptedHeadsetCharging_comesFromTheHighBit()
+    {
+        Battery b;
+        QVERIFY(b.parseEncryptedPacket(payload(90, 0, 0), true, false, true));
+        QCOMPARE(b.getHeadsetLevel(), quint8(90));
+        QVERIFY(!b.isHeadsetCharging());
+
+        QVERIFY(b.parseEncryptedPacket(payload(0x80 | 90, 0, 0), true, false, true));
+        QCOMPARE(b.getHeadsetLevel(), quint8(90));
+        QVERIFY(b.isHeadsetCharging());
+    }
+
+private:
+    // The AAP battery packet for a headset, which is what establishes a real level.
+    QByteArray headsetPacket(int level)
+    {
+        QByteArray buf = AirPodsPackets::Parse::BATTERY_STATUS;
+        buf.append(static_cast<char>(1));
+        buf.append(static_cast<char>(Battery::Component::Headset));
+        buf.append(static_cast<char>(0x01));
+        buf.append(static_cast<char>(level));
+        buf.append(static_cast<char>(Battery::BatteryStatus::Discharging));
+        buf.append(static_cast<char>(0x01));
+        return buf;
+    }
 };
 
 QTEST_GUILESS_MAIN(TestBattery)

@@ -179,15 +179,22 @@ public:
         auto [isRightCharging, rawRightBattery] = formatBattery(rawRightBatteryByte);
         auto [isCaseCharging, rawCaseBattery] = formatBattery(rawCaseBatteryByte);
         if (isHeadset) {
-            int batteries[] = {rawLeftBattery, rawRightBattery, rawCaseBattery};
-            bool statuses[] = {isLeftCharging, isRightCharging, isCaseCharging};
-            // Find the first battery that isn't CHAR_MAX
-            auto it = std::find_if(std::begin(batteries), std::end(batteries), [](int i) { return i != CHAR_MAX; });
-            if (it != std::end(batteries)) {
-                std::size_t idx = it - std::begin(batteries);
-                int battery = *it;
-                primaryPod = Component::Headset;
-                states[Component::Headset] =  {static_cast<quint8>(battery), statuses[idx] ? BatteryStatus::Charging : BatteryStatus::Discharging};
+            // A headset carries its single battery in payload byte 1, and the
+            // isLeftPodPrimary flip does not move it. That flip is an earbuds
+            // concept: with two pods it decides which byte is the left one, but
+            // on a Max it only renames the same byte, so following the mapping
+            // made the level appear to hop between the left and right slots
+            // whenever primary changed -- and the slot it hopped out of reads 0,
+            // not the 0x7F that means unknown, so the old scan adopted that zero
+            // and the panel flickered 100% -> 0% -> 100% every time the
+            // headphones came off. Reading the byte directly keeps a genuine 0%
+            // distinguishable from the slot a headset simply does not use.
+            auto [headsetCharging, headsetLevel] =
+                formatBattery(static_cast<unsigned char>(packet.at(1)));
+            primaryPod = Component::Headset;
+            if (headsetLevel != CHAR_MAX && headsetLevel <= 100) {
+                states[Component::Headset] = {static_cast<quint8>(headsetLevel),
+                    headsetCharging ? BatteryStatus::Charging : BatteryStatus::Discharging};
             }
         } else {
             if (rawLeftBattery == CHAR_MAX) {

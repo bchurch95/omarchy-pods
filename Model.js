@@ -47,6 +47,7 @@ function defaultStatus() {
     deviceName: "",
     modelName: "",
     isProSeries: false,
+    isHeadset: false,
     supportsNoiseOff: true,
     noiseMode: NOISE_UNKNOWN,
     adaptiveNoiseLevel: 0,
@@ -56,7 +57,8 @@ function defaultStatus() {
     lidState: LID_UNKNOWN,
     left: defaultPod(),
     right: defaultPod(),
-    caseBattery: { level: LEVEL_UNKNOWN, charging: false }
+    caseBattery: { level: LEVEL_UNKNOWN, charging: false },
+    headset: { level: LEVEL_UNKNOWN, charging: false }
   }
 }
 
@@ -90,6 +92,10 @@ function podFrom(raw) {
 //  "reopen_calls_total":0,
 //  "right":{"available":true,"charging":true,"in_ear":false,"level":100},
 //  "schema_version":1,"supports_noise_off":false}
+//
+// A headset (AirPods Max) instead carries "is_headset":true and
+// "headset":{"available":true,"charging":false,"level":100}, with left, right
+// and case all absent or unavailable — one battery, no pods, no case.
 function parseStatus(raw) {
   var status = defaultStatus()
   var text = String(raw || "").trim()
@@ -123,6 +129,10 @@ function parseStatus(raw) {
   status.deviceName = String(parsed.device_name || "")
   status.modelName = String(parsed.model_name || "")
   status.isProSeries = parsed.is_pro_series === true
+  // AirPods Max: one battery in "headset", no pods and no case. Daemons older
+  // than the headset fix send neither key, so this stays false and the panel
+  // keeps drawing the pod rows.
+  status.isHeadset = parsed.is_headset === true
   // Older daemons do not send this, and every model before the Pro 3 had Off.
   status.supportsNoiseOff = parsed.supports_noise_off !== false
   status.noiseMode = intOr(parsed.noise_mode, NOISE_UNKNOWN)
@@ -135,6 +145,8 @@ function parseStatus(raw) {
   status.right = podFrom(parsed.right)
   var caseRaw = podFrom(parsed["case"])
   status.caseBattery = { level: caseRaw.level, charging: caseRaw.charging }
+  var headsetRaw = podFrom(parsed.headset)
+  status.headset = { level: headsetRaw.level, charging: headsetRaw.charging }
   return status
 }
 
