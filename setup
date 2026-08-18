@@ -1,0 +1,21 @@
+#!/bin/bash
+# Install build packages, compile the daemon, and enable the user service.
+# omarchy plugin add only clones files; this is the rest of install.
+
+set -euo pipefail
+
+root=$(cd "$(dirname "$0")" && pwd)
+daemon="$root/daemon"
+prefix="${PREFIX:-$HOME/.local}"
+
+omarchy pkg add cmake ninja qt6-connectivity qt6-tools qt6-declarative pkgconf libpulse
+
+cmake -S "$daemon" -B "$daemon/build" -G Ninja -DBUILD_TESTING=OFF
+cmake --build "$daemon/build"
+cmake --install "$daemon/build" --prefix "$prefix"
+systemctl --user daemon-reload
+systemctl --user enable --now librepods.service
+
+echo "librepods is running."
+echo "The bar icon stays hidden until AirPods are connected."
+echo "Keep it visible: omarchy bar set io.github.thisisgm.omapods hideWhenDisconnected false --json"
