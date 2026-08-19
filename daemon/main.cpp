@@ -698,6 +698,8 @@ public slots:
         // the disconnect notifications that BlueZ fires during resume
         // don't surface as user-visible "AirPods Disconnected" toasts.
         QTimer::singleShot(2000, this, [this]() {
+            m_bleManager->startScan();
+
             if (areAirpodsConnected() && m_deviceInfo && !m_deviceInfo->bluetoothAddress().isEmpty())
             {
                 stopBleScanWhileConnected();
@@ -710,10 +712,6 @@ public slots:
                     mediaController->activateA2dpProfile();
                     LOG_INFO("A2DP profile activation attempted after system wake-up");
                 });
-            }
-            else
-            {
-                m_bleManager->startScan();
             }
 
             monitor->checkAlreadyConnectedDevices();

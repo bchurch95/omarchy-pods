@@ -57,8 +57,12 @@ void MediaController::handleEarDetection(EarDetection *earDetection)
     m_earOutPending = true;
     const quint64 generation = m_earDetectionGeneration;
     QTimer::singleShot(bothPodsOutSettleMs, this, [this, earDetection, generation]() {
+      // A superseded callback must not clear the window a newer report opened.
+      if (generation != m_earDetectionGeneration)
+        return;
+
       m_earOutPending = false;
-      if (generation != m_earDetectionGeneration || earDetectionBehavior == Disabled)
+      if (earDetectionBehavior == Disabled)
         return;
 
       if (earDetection->isPrimaryInEar() || earDetection->isSecondaryInEar())
@@ -73,6 +77,7 @@ void MediaController::handleEarDetection(EarDetection *earDetection)
 
   // Any in-ear report supersedes a pending transient both-out report.
   ++m_earDetectionGeneration;
+  m_earOutPending = false;
 
   // First handle playback pausing based on selected behavior
   bool shouldPause = false;
@@ -98,22 +103,14 @@ void MediaController::handleEarDetection(EarDetection *earDetection)
     }
   }
 
-  // Then handle device profile switching
-  if (primaryInEar || secondaryInEar)
-  {
-    LOG_DEBUG("At least one AirPod is in ear");
-    activateA2dpProfile();
+  // Then handle device profile switching, with both pods out already returned above
+  LOG_DEBUG("At least one AirPod is in ear");
+  activateA2dpProfile();
 
-    // Resume if conditions are met and we previously paused
-    if (shouldResume && !pausedByAppServices.isEmpty() && isActiveOutputDeviceAirPods())
-    {
-      play();
-    }
-  }
-  else
+  // Resume if conditions are met and we previously paused
+  if (shouldResume && !pausedByAppServices.isEmpty() && isActiveOutputDeviceAirPods())
   {
-    LOG_DEBUG("Both AirPods are out of ear");
-    removeAudioOutputDevice();
+    play();
   }
 }
 
@@ -127,6 +124,7 @@ void MediaController::setEarDetectionBehavior(EarDetectionBehavior behavior)
 
   // A pending both-out callback belongs to the policy that scheduled it, not to this one.
   ++m_earDetectionGeneration;
+  m_earOutPending = false;
   earDetectionBehavior = behavior;
   LOG_INFO("Set ear detection behavior to: " << behavior);
 }
