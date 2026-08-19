@@ -123,9 +123,7 @@ qt_add_translations(librepods
 install(FILES ${QM_FILES}
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/openpods/translations")
 
-# CTest defaults BUILD_TESTING ON. A user cmake from the README should not
-# compile the Qt Test suite unless they asked.
-option(BUILD_TESTING "Build unit tests" OFF)
+# CTest defines BUILD_TESTING and defaults it ON, so without this include the suite never builds.
 include(CTest)
 if(BUILD_TESTING)
     enable_testing()

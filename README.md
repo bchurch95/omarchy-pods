@@ -95,9 +95,10 @@ To build the daemon by hand instead of running `setup`:
 ```bash
 omarchy pkg add cmake ninja qt6-connectivity qt6-tools qt6-declarative pkgconf libpulse
 cd ~/.config/omarchy/plugins/io.github.thisisgm.omapods/daemon
-cmake -B build -G Ninja && cmake --build build
+cmake -B build -G Ninja -DBUILD_TESTING=OFF && cmake --build build
 cmake --install build --prefix ~/.local
-systemctl --user enable --now librepods.service
+systemctl --user enable librepods.service
+systemctl --user restart librepods.service
 ```
 
 `~/.local` is the prefix the unit expects, because it runs
