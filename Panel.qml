@@ -216,6 +216,7 @@ Panel {
           }
 
           Text {
+            textFormat: Text.PlainText
             // A command failure gets its own field, or the next status read wipes it unread.
             visible: pods.actionStatus !== "" || (pods.lastError !== "" && pods.daemonReachable)
             width: parent.width
@@ -336,6 +337,7 @@ Panel {
           }
 
           Text {
+            textFormat: Text.PlainText
             visible: root.guidanceVisible
             width: parent.width
             text: pods.daemonReachable
@@ -394,6 +396,7 @@ Panel {
       spacing: Style.space(8)
 
       Text {
+        textFormat: Text.PlainText
         text: podRow.label
         color: root.foreground
         opacity: 0.6
@@ -419,6 +422,7 @@ Panel {
       }
 
       Text {
+        textFormat: Text.PlainText
         text: Model.levelText(podRow.pod.level)
         color: root.foreground
         font.family: root.fontFamily
@@ -428,6 +432,7 @@ Panel {
       }
 
       Text {
+        textFormat: Text.PlainText
         text: podRow.metaText
         color: root.dim
         font.family: root.fontFamily
@@ -466,6 +471,7 @@ Panel {
       spacing: Style.space(8)
 
       Text {
+        textFormat: Text.PlainText
         id: modeLabel
         Layout.fillWidth: true
         text: Model.noiseModeName(modeRow.mode)
@@ -477,6 +483,7 @@ Panel {
       }
 
       Text {
+        textFormat: Text.PlainText
         Layout.alignment: Qt.AlignVCenter
         text: Model.GLYPH_CHECK
         color: root.foreground
@@ -522,6 +529,7 @@ Panel {
         spacing: Style.space(1)
 
         Text {
+          textFormat: Text.PlainText
           Layout.fillWidth: true
           text: toggleRow.label
           color: root.foreground
@@ -531,6 +539,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           Layout.fillWidth: true
           text: toggleRow.caption
           color: root.dim
@@ -578,6 +587,7 @@ Panel {
       spacing: Style.space(8)
 
       Text {
+        textFormat: Text.PlainText
         id: valueLabel
         Layout.fillWidth: true
         text: valueRow.label
@@ -588,6 +598,7 @@ Panel {
       }
 
       Text {
+        textFormat: Text.PlainText
         text: valueRow.value
         color: root.dim
         font.family: root.fontFamily
@@ -614,6 +625,7 @@ Panel {
         spacing: Style.space(8)
 
         Text {
+          textFormat: Text.PlainText
           text: "Adaptive noise"
           color: root.foreground
           opacity: 0.6
@@ -627,6 +639,7 @@ Panel {
         }
 
         Text {
+          textFormat: Text.PlainText
           text: pods.adaptiveNoiseLevel + "%"
           color: root.foreground
           font.family: root.fontFamily
