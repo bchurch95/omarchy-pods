@@ -698,6 +698,7 @@ public slots:
         // the disconnect notifications that BlueZ fires during resume
         // don't surface as user-visible "AirPods Disconnected" toasts.
         QTimer::singleShot(2000, this, [this]() {
+            // Suspend stopped discovery on every controller, so resume restarts it and the gate below re-applies.
             m_bleManager->startScan();
 
             if (areAirpodsConnected() && m_deviceInfo && !m_deviceInfo->bluetoothAddress().isEmpty())
