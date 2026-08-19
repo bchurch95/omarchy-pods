@@ -52,7 +52,7 @@ private slots:
         QVERIFY(!session.acceptsProbe(secondProbe));
     }
 
-    void exhaustsSharedRetryBudget()
+    void stopsRetryingAtTheAttemptLimit()
     {
         ControlReconnect::Session session;
         session.begin(false);
@@ -60,6 +60,22 @@ private slots:
         QVERIFY(session.prepareRetry(2));
         QVERIFY(!session.prepareRetry(2));
         QCOMPARE(session.completedAttempts(), 2);
+        QVERIFY(!session.complete());
+    }
+
+    void aFinalizedSessionCannotBeRetried()
+    {
+        ControlReconnect::Session session;
+        session.begin(true);
+        const auto probe = session.beginProbe();
+
+        session.cancel();
+        QCOMPARE(session.state(), ControlReconnect::State::Idle);
+        QVERIFY(!session.isActive());
+
+        // The timer that was already queued when finalize ran must not restart the session.
+        QVERIFY(!session.acceptsProbe(probe));
+        QVERIFY(!session.prepareRetry(3));
         QVERIFY(!session.complete());
     }
 };

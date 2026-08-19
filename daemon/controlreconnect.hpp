@@ -13,11 +13,20 @@ enum class State
     ConnectingSocket
 };
 
+// Doubling from one second, capped so a long-lived session cannot overflow the shift.
+inline constexpr int baseDelayMs = 1000;
+inline constexpr int maxDoublings = 10;
+inline constexpr int maxJitterMs = 499;
+inline constexpr int jitterRangeMs = maxJitterMs + 1;
+
+// Short enough that a real profile rebuild is still in progress when the first probe runs.
+inline constexpr int firstDelayMs = 750;
+
 inline int delayMs(int attempt, int jitterMs)
 {
-    const int boundedAttempt = std::clamp(attempt, 1, 10);
-    const int boundedJitter = std::clamp(jitterMs, 0, 499);
-    return 1000 * (1 << (boundedAttempt - 1)) + boundedJitter;
+    const int boundedAttempt = std::clamp(attempt, 1, maxDoublings);
+    const int boundedJitter = std::clamp(jitterMs, 0, maxJitterMs);
+    return baseDelayMs * (1 << (boundedAttempt - 1)) + boundedJitter;
 }
 
 inline bool hasAttemptRemaining(int completedAttempts, int maximumAttempts)

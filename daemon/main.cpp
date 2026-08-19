@@ -115,11 +115,7 @@ public:
         connect(monitor, &BluetoothMonitor::deviceConnectionProbeFinished,
                 this, &AirPodsTrayApp::controlConnectionProbeFinished);
 
-        // The proprietary AAP control socket can disappear while BlueZ keeps
-        // the A2DP transport connected. Device1::Connected therefore cannot
-        // be relied on to emit another rising edge. Keep a small, independent
-        // recovery timer for that control link and leave the audio profile
-        // untouched while it retries.
+        // The control socket can drop while BlueZ keeps A2DP up, so Device1::Connected never rises again.
         m_controlReconnectTimer = new QTimer(this);
         m_controlReconnectTimer->setSingleShot(true);
         connect(m_controlReconnectTimer, &QTimer::timeout,
@@ -803,9 +799,7 @@ private slots:
                 LOG_DEBUG("Control recovery connection is already in progress");
                 return;
             }
-            if (m_controlReconnectTimer) {
-                m_controlReconnectTimer->stop();
-            }
+            m_controlReconnectTimer->stop();
             m_controlRecovery.beginConnection();
         }
         connectToDevice(device, recovering);
@@ -838,11 +832,7 @@ private slots:
             socket = nullptr;
         }
 
-        // BlueZ may briefly lower Device1::Connected while rebuilding one
-        // profile even though A2DP immediately survives or reconnects. Delay
-        // the full-disconnect path and first try to restore only the AAP
-        // control socket. This avoids discovery and profile churn in an
-        // otherwise healthy audio session.
+        // BlueZ lowers Connected while rebuilding a profile, so try the control socket before tearing down.
         scheduleControlReconnect(address.toString(), m_lastAirPodsName,
                                  QStringLiteral("BlueZ disconnect event"));
     }
@@ -853,9 +843,7 @@ private slots:
             return;
         }
         m_disconnectFinalized = true;
-        if (m_controlReconnectTimer) {
-            m_controlReconnectTimer->stop();
-        }
+        m_controlReconnectTimer->stop();
         m_controlRecovery.cancel();
         m_retryCount = 0;
 
@@ -882,8 +870,6 @@ private slots:
         if (trayManager) {
             trayManager->resetTrayIcon();
         }
-
-        LOG_INFO("AirPods control recovery exhausted for " << address);
     }
 
     void rememberAirPodsDevice(const QString &address, const QString &name)
@@ -907,16 +893,14 @@ private slots:
 
         const bool bleScanWasActive = m_bleManager->isScanning();
 
-        // Discovery competes with A2DP on constrained controllers. Keep it
-        // stopped during recovery, then restore the policy that was active
-        // before the control link disappeared.
+        // Recovery re-opens an L2CAP socket, so discovery pauses for that window and is restored after.
         m_bleManager->stopScan();
 
         if (!m_controlRecovery.isActive()) {
             m_controlRecovery.begin(bleScanWasActive);
             m_disconnectFinalized = false;
             LOG_INFO("Scheduling AirPods control reconnect after " << reason);
-            m_controlReconnectTimer->start(750);
+            m_controlReconnectTimer->start(ControlReconnect::firstDelayMs);
         } else if (m_controlRecovery.state() == ControlReconnect::State::ConnectingSocket) {
             scheduleControlRecoveryRetry(reason);
         }
@@ -962,13 +946,13 @@ private slots:
             return;
         }
 
-        scheduleControlRecoveryRetry(QStringLiteral("BlueZ is not connected"));
+        scheduleControlRecoveryRetry(QStringLiteral("BlueZ did not report the device as connected"));
     }
 
     void scheduleControlRecoveryRetry(const QString &reason)
     {
         if (m_controlRecovery.prepareRetry(m_retryAttempts)) {
-            const int jitter = static_cast<int>(QRandomGenerator::global()->bounded(500));
+            const int jitter = static_cast<int>(QRandomGenerator::global()->bounded(ControlReconnect::jitterRangeMs));
             const int attempt = m_controlRecovery.completedAttempts();
             const int delay = ControlReconnect::delayMs(attempt, jitter);
             LOG_INFO("Retrying AirPods control recovery after " << reason << " ("
@@ -978,6 +962,7 @@ private slots:
         }
 
         ++m_reconnectFailuresTotal;
+        LOG_INFO("AirPods control recovery exhausted for " << m_lastAirPodsAddress);
         finalizeDeviceDisconnected(m_lastAirPodsAddress);
     }
 
@@ -987,9 +972,7 @@ private slots:
             return;
         }
 
-        if (m_controlReconnectTimer) {
-            m_controlReconnectTimer->stop();
-        }
+        m_controlReconnectTimer->stop();
         const bool restoreBleScan = m_controlRecovery.complete();
         m_disconnectFinalized = false;
         if (restoreBleScan) {
@@ -1148,7 +1131,7 @@ private slots:
                 // Fixed-delay 1500ms hammered BlueZ if multiple peers were
                 // also retrying after a controller reset — exponential
                 // spacing + jitter avoids the thundering-herd reconnect.
-                const int jitter = static_cast<int>(QRandomGenerator::global()->bounded(500));
+                const int jitter = static_cast<int>(QRandomGenerator::global()->bounded(ControlReconnect::jitterRangeMs));
                 const int delay = ControlReconnect::delayMs(m_retryCount, jitter);
                 LOG_INFO("Retrying connection (attempt " << m_retryCount << "/" << m_retryAttempts
                          << ", delay=" << delay << "ms, total=" << m_reconnectAttemptsTotal << ")");
