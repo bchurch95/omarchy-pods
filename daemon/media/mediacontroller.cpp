@@ -13,6 +13,9 @@
 #include <QDBusConnectionInterface>
 #include <QTimer>
 
+// Long enough to outlast an ANC or transparency reconfigure, short enough not to strand playback.
+static constexpr int bothPodsOutSettleMs = 1200;
+
 MediaController::MediaController(QObject *parent) : QObject(parent) {
   m_pulseAudio = new PulseAudioController(this);
   if (!m_pulseAudio->initialize())
@@ -41,13 +44,20 @@ void MediaController::handleEarDetection(EarDetection *earDetection)
   bool primaryInEar = earDetection->isPrimaryInEar();
   bool secondaryInEar = earDetection->isSecondaryInEar();
 
-  // ANC/transparency changes can briefly report both pods as out of ear while
-  // the AirPods reconfigure.  Do not tear down the Bluetooth audio card for
-  // that transient state; wait for it to persist before pausing/removing it.
+  LOG_DEBUG("Ear detection status: primaryInEar="
+            << primaryInEar << ", secondaryInEar=" << secondaryInEar
+            << ", isAirPodsActive=" << isActiveOutputDeviceAirPods());
+
+  // An ANC or transparency change reports both pods out for a moment while the AirPods reconfigure.
   if (!primaryInEar && !secondaryInEar)
   {
-    const quint64 generation = ++m_earDetectionGeneration;
-    QTimer::singleShot(1200, this, [this, earDetection, generation]() {
+    // Keep the first deadline, so a repeated both-out report cannot defer the teardown forever.
+    if (m_earOutPending)
+      return;
+    m_earOutPending = true;
+    const quint64 generation = m_earDetectionGeneration;
+    QTimer::singleShot(bothPodsOutSettleMs, this, [this, earDetection, generation]() {
+      m_earOutPending = false;
       if (generation != m_earDetectionGeneration || earDetectionBehavior == Disabled)
         return;
 
@@ -63,10 +73,6 @@ void MediaController::handleEarDetection(EarDetection *earDetection)
 
   // Any in-ear report supersedes a pending transient both-out report.
   ++m_earDetectionGeneration;
-
-  LOG_DEBUG("Ear detection status: primaryInEar="
-            << primaryInEar << ", secondaryInEar=" << secondaryInEar
-            << ", isAirPodsActive=" << isActiveOutputDeviceAirPods());
 
   // First handle playback pausing based on selected behavior
   bool shouldPause = false;
@@ -119,9 +125,7 @@ void MediaController::setEarDetectionBehavior(EarDetectionBehavior behavior)
     return;
   }
 
-  // A delayed both-out callback belongs to the policy that scheduled it.
-  // Invalidate it before changing policy so disable/re-enable transitions
-  // cannot revive stale pause or output-removal work.
+  // A pending both-out callback belongs to the policy that scheduled it, not to this one.
   ++m_earDetectionGeneration;
   earDetectionBehavior = behavior;
   LOG_INFO("Set ear detection behavior to: " << behavior);
@@ -297,10 +301,7 @@ void MediaController::activateA2dpProfile() {
     return;
   }
 
-  // WirePlumber already owns profile negotiation.  Re-applying the same
-  // profile on every Bluetooth/AAP notification tears down the live sink and
-  // can interrupt active streams (and may race WirePlumber's codec setup).
-  // Only change the card when it is not already using the profile we chose.
+  // Re-applying the profile WirePlumber already set tears down the live sink under a playing stream.
   const QString activeProfile = m_pulseAudio->getActiveCardProfile(m_deviceOutputName);
   if (activeProfile == preferredProfile) {
     LOG_INFO("A2DP profile already active: " << activeProfile);

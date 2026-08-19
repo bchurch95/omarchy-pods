@@ -647,15 +647,32 @@ public slots:
     int loadRetryAttempts() const { return m_settings->value("bluetooth/retryAttempts", 3).toInt(); }
     void saveRetryAttempts(int attempts) { m_settings->setValue("bluetooth/retryAttempts", attempts); }
 
+    // Sample input: usb:v8087p0A2Bd0010dcE0dsc01dp01icE0isc01ip01in00
+    // Only Apple's own controller (vendor 05AC) drops A2DP packets under continuous BLE discovery.
+    static bool bluetoothControllerIsApple()
+    {
+        static const bool affected = []() {
+            QDir sys(QStringLiteral("/sys/class/bluetooth"));
+            const QStringList adapters = sys.entryList(QStringList() << QStringLiteral("hci*"),
+                                                       QDir::Dirs | QDir::NoDotAndDotDot);
+            for (const QString &adapter : adapters) {
+                QFile modalias(sys.filePath(adapter) + QStringLiteral("/device/modalias"));
+                if (!modalias.open(QIODevice::ReadOnly | QIODevice::Text))
+                    continue;
+                if (QString::fromLatin1(modalias.readAll()).contains(QStringLiteral("v05AC"), Qt::CaseInsensitive))
+                    return true;
+            }
+            return false;
+        }();
+        return affected;
+    }
+
     void stopBleScanWhileConnected()
     {
-        if (!areAirpodsConnected() || !m_bleManager->isScanning())
+        // Everywhere else keeps discovery running, so case and lid battery stay live while connected.
+        if (!bluetoothControllerIsApple() || !areAirpodsConnected() || !m_bleManager->isScanning())
             return;
 
-        // This controller carries A2DP and BLE on the same radio. Continuous
-        // discovery while audio is active coincides with malformed advertising
-        // reports and missing A2DP completion reports on this Broadcom
-        // controller, so favor uninterrupted audio once the AAP link is live.
         LOG_INFO("Stopping BLE scan while AirPods control link is connected");
         m_bleManager->stopScan();
     }
@@ -1052,10 +1069,7 @@ private slots:
             {
                 mediaController->activateA2dpProfile();
             }
-            // The connected AAP path provides listening controls and pod
-            // battery state. Keep BLE discovery off while that link is live
-            // so it cannot contend with A2DP; onDeviceDisconnected restarts
-            // discovery for case/lid and disconnected battery updates.
+            // Only on the affected controller, where onDeviceDisconnected restarts it.
             stopBleScanWhileConnected();
             emit airPodsStatusChanged();
         }
@@ -1306,12 +1320,8 @@ public:
         connectToPhone();
 
         m_deviceInfo->loadFromSettings(*m_settings);
-        // BLE advertisements remain useful while disconnected for case/lid
-        // and battery discovery. Once the AAP control link connects its
-        // handler stops this scan to protect active A2DP playback.
-        if (areAirpodsConnected())
-            stopBleScanWhileConnected();
-        else
+        // Nothing is scanning yet, so the affected controller is the only reason not to start.
+        if (!(areAirpodsConnected() && bluetoothControllerIsApple()))
             m_bleManager->startScan();
     }
 
