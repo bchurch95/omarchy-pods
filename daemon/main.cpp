@@ -1245,9 +1245,9 @@ private slots:
         else if (data.startsWith(AirPodsPackets::MagicPairing::MAGIC_CLOUD_KEYS_HEADER))
         {
             auto keys = AirPodsPackets::MagicPairing::parseMagicCloudKeysPacket(data);
-            LOG_INFO("Received Magic Cloud Keys:");
-            LOG_INFO("MagicAccIRK: " << keys.magicAccIRK.toHex());
-            LOG_INFO("MagicAccEncKey: " << keys.magicAccEncKey.toHex());
+            // Sizes, never the key material: the journal is not where a pairing key belongs.
+            LOG_INFO("Received Magic Cloud Keys: IRK " << keys.magicAccIRK.size()
+                     << " bytes, EncKey " << keys.magicAccEncKey.size() << " bytes");
 
             // Store the keys
             m_deviceInfo->setMagicAccIRK(keys.magicAccIRK);
