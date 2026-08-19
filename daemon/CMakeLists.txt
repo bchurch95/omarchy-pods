@@ -123,8 +123,7 @@ qt_add_translations(librepods
 install(FILES ${QM_FILES}
     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/openpods/translations")
 
-# Unit tests — opt-in via BUILD_TESTING. CTest is what defines that option and
-# defaults it ON; without this include the whole suite silently never builds.
+# CTest defines BUILD_TESTING and defaults it ON, so without this include the suite never builds.
 include(CTest)
 if(BUILD_TESTING)
     enable_testing()

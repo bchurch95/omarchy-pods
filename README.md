@@ -54,7 +54,8 @@
   package built from it carry no state file, no `status` verb, none of the
   `ca:`, `onebud:` or `adaptive:` verbs, and no AirPods Pro 3 model map, so the
   panel would stay hidden forever. See [daemon/UPSTREAM.md](daemon/UPSTREAM.md)
-  for what it is, who wrote it and what was changed. Install builds it.
+  for what it is, who wrote it and what was changed. `omarchy plugin add` only
+  clones the plugin; `setup` builds the daemon.
 - AirPods paired to the machine through the usual Bluetooth flow.
 
 ## How it works
@@ -73,21 +74,32 @@ empty surface.
 
 ```bash
 omarchy plugin add https://github.com/thisisgm/omarchy-pods --enable
-omarchy bar move io.github.thisisgm.omapods
+~/.config/omarchy/plugins/io.github.thisisgm.omapods/setup
 ```
 
-The [marketplace listing](https://omarchyplugins.com/plugin.html?id=io.github.thisisgm.omapods)
+`--enable` already places the widget on the right of the bar. The
+[marketplace listing](https://omarchyplugins.com/plugin.html?id=io.github.thisisgm.omapods)
 installs to the same place.
 
-Then build the daemon out of the copy that just cloned, and hand it to systemd.
-Building it needs `cmake`, `ninja`, `qt6-connectivity`, `qt6-tools`,
-`qt6-declarative`, `pkgconf` and `libpulse`:
+`setup` installs `cmake`, `ninja`, `qt6-connectivity`, `qt6-tools`,
+`qt6-declarative`, `pkgconf` and `libpulse` if they are missing, builds the
+daemon into `~/.local`, and enables `librepods.service`. The icon stays hidden
+until AirPods are connected (`hideWhenDisconnected`). To keep it visible:
 
 ```bash
+omarchy bar set io.github.thisisgm.omapods hideWhenDisconnected false --json
+```
+
+To build the daemon by hand instead of running `setup`:
+
+```bash
+omarchy pkg add cmake ninja qt6-connectivity qt6-tools qt6-declarative pkgconf libpulse
 cd ~/.config/omarchy/plugins/io.github.thisisgm.omapods/daemon
-cmake -B build -G Ninja && cmake --build build
+cmake -B build -G Ninja -DBUILD_TESTING=OFF && cmake --build build
 cmake --install build --prefix ~/.local
-systemctl --user enable --now librepods.service
+systemctl --user daemon-reload
+systemctl --user enable librepods.service
+systemctl --user restart librepods.service
 ```
 
 `~/.local` is the prefix the unit expects, because it runs
