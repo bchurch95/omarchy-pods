@@ -1207,9 +1207,7 @@ private slots:
             // is -1 when the broadcast nibble was 15 (unknown); the
             // setter skips those so we don't clobber a valid prior
             // reading.
-            // A Max has no case, and its adv's case nibble decodes to 0 rather
-            // than to the 15 that means unknown, so feeding it in marks
-            // Component::Case available at 0% and invents a flat case row.
+            // A Max has no case, and its nibble decodes to 0 rather than the 15 that means unknown.
             if (!isModelHeadset(m_deviceInfo->model())) {
                 m_deviceInfo->getBattery()->setCaseFromBle(device.caseBattery, device.caseCharging);
             }
@@ -1424,10 +1422,7 @@ public:
             caseObj.insert("level",    b->getCaseLevel());
             caseObj.insert("charging", b->isCaseCharging());
             status.insert("case", caseObj);
-            // An AirPods Max reports a single battery in Component::Headset,
-            // which the left/right/case trio cannot express: both pods read
-            // unavailable and there is no case at all. Publish it under its own
-            // key so the panel has a real level to draw instead of two dashes.
+            // A Max reports one battery in Component::Headset, which left, right and case cannot express.
             QJsonObject headsetObj;
             headsetObj.insert("available", b->isHeadsetAvailable());
             headsetObj.insert("level",    b->getHeadsetLevel());
@@ -1453,8 +1448,7 @@ public:
         status.insert("model_name", d ? modelDisplayName(d->model()) : QString());
         status.insert("model_int", d ? static_cast<int>(d->model()) : 0);
         status.insert("is_pro_series", d ? isProSeriesAirPods(d->model()) : false);
-        // Headset models carry one battery and no case, so a panel needs to know
-        // which shape to draw before any battery packet has arrived.
+        // The panel needs the shape before any battery packet has arrived.
         status.insert("is_headset", d ? isModelHeadset(d->model()) : false);
         status.insert("supports_noise_off", d ? supportsNoiseOff(d->model()) : true);
         // Raw "A<NNNN>" code from the AAP metadata packet. Useful

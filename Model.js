@@ -92,10 +92,7 @@ function podFrom(raw) {
 //  "reopen_calls_total":0,
 //  "right":{"available":true,"charging":true,"in_ear":false,"level":100},
 //  "schema_version":1,"supports_noise_off":false}
-//
-// A headset (AirPods Max) instead carries "is_headset":true and
-// "headset":{"available":true,"charging":false,"level":100}, with left, right
-// and case all absent or unavailable — one battery, no pods, no case.
+// A headset (AirPods Max) instead sends "is_headset":true and "headset":{"available":true,"charging":false,"level":100}, with no pods and no case.
 function parseStatus(raw) {
   var status = defaultStatus()
   var text = String(raw || "").trim()
@@ -129,9 +126,7 @@ function parseStatus(raw) {
   status.deviceName = String(parsed.device_name || "")
   status.modelName = String(parsed.model_name || "")
   status.isProSeries = parsed.is_pro_series === true
-  // AirPods Max: one battery in "headset", no pods and no case. Daemons older
-  // than the headset fix send neither key, so this stays false and the panel
-  // keeps drawing the pod rows.
+  // Older daemons send neither key, so this stays false and the pod rows keep drawing.
   status.isHeadset = parsed.is_headset === true
   // Older daemons do not send this, and every model before the Pro 3 had Off.
   status.supportsNoiseOff = parsed.supports_noise_off !== false

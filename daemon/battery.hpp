@@ -157,6 +157,7 @@ public:
         return true;
     }
 
+    // Sample input: 16 decrypted bytes, [1] and [2] the pods (a headset uses [1] alone), [3] the case, high bit charging.
     bool parseEncryptedPacket(const QByteArray &packet, bool isLeftPodPrimary, bool podInCase, bool isHeadset)
     {
         // Validate packet size (expect 16 bytes based on provided payloads)
@@ -179,20 +180,12 @@ public:
         auto [isRightCharging, rawRightBattery] = formatBattery(rawRightBatteryByte);
         auto [isCaseCharging, rawCaseBattery] = formatBattery(rawCaseBatteryByte);
         if (isHeadset) {
-            // A headset carries its single battery in payload byte 1, and the
-            // isLeftPodPrimary flip does not move it. That flip is an earbuds
-            // concept: with two pods it decides which byte is the left one, but
-            // on a Max it only renames the same byte, so following the mapping
-            // made the level appear to hop between the left and right slots
-            // whenever primary changed -- and the slot it hopped out of reads 0,
-            // not the 0x7F that means unknown, so the old scan adopted that zero
-            // and the panel flickered 100% -> 0% -> 100% every time the
-            // headphones came off. Reading the byte directly keeps a genuine 0%
-            // distinguishable from the slot a headset simply does not use.
+            // A headset keeps its one battery in byte 1, and the primary flip only renames that byte.
             auto [headsetCharging, headsetLevel] =
                 formatBattery(static_cast<unsigned char>(packet.at(1)));
             primaryPod = Component::Headset;
-            if (headsetLevel != CHAR_MAX && headsetLevel <= 100) {
+            // formatBattery masks to 0-127, so this also drops the 0x7F that means unknown.
+            if (headsetLevel <= 100) {
                 states[Component::Headset] = {static_cast<quint8>(headsetLevel),
                     headsetCharging ? BatteryStatus::Charging : BatteryStatus::Discharging};
             }
