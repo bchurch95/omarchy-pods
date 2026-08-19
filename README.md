@@ -158,6 +158,12 @@ not JSON, and a schema newer than this panel reads.
 deno run --allow-read tests/model.test.js
 ```
 
+## Contributing
+
+Bug reports and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md)
+covers the build, what review will ask you to prove, and the house style;
+[AGENTS.md](AGENTS.md) adds the traps coding agents hit in this tree.
+
 ## Credits
 
 The hard part is not this panel. It is
