@@ -5,6 +5,9 @@
 #include "logger.h"
 #include <QMap>
 
+// Fixed header data[0] through data[10], then a 16-byte encrypted payload.
+static constexpr int proximityPairingBytes = 11 + 16;
+
 AirpodsTrayApp::Enums::AirPodsModel getModelName(quint16 modelId)
 {
     using namespace AirpodsTrayApp::Enums;
@@ -127,8 +130,9 @@ void BleManager::onDeviceDiscovered(const QBluetoothDeviceInfo &info)
     if (info.manufacturerData().contains(0x004C))
     {
         QByteArray data = info.manufacturerData().value(0x004C);
-        // Ensure data is long enough and starts with prefix 0x07 (indicates Proximity Pairing Message)
-        if (data.size() >= 10 && data[0] == 0x07)
+        // Sample input: 07 19 01 27 20 21 88 8F 11 00 04 <16 encrypted bytes>
+        // A shorter frame reads past data[10] and slices a wrong payload below, and any BLE device in range can send one.
+        if (data.size() >= proximityPairingBytes && data[0] == 0x07)
         {
             QString address = info.address().toString();
             BleInfo deviceInfo;
