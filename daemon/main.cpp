@@ -893,7 +893,7 @@ private slots:
 
         const bool bleScanWasActive = m_bleManager->isScanning();
 
-        // Recovery re-opens an L2CAP socket, so discovery pauses for that window and is restored after.
+        // A live scan delays the L2CAP connect this recovery depends on, so pause it and restore after.
         m_bleManager->stopScan();
 
         if (!m_controlRecovery.isActive()) {

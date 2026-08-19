@@ -63,7 +63,7 @@ private slots:
         QVERIFY(!session.complete());
     }
 
-    void aFinalizedSessionCannotBeRetried()
+    void aCancelledSessionCannotBeRetried()
     {
         ControlReconnect::Session session;
         session.begin(true);
@@ -72,11 +72,23 @@ private slots:
         session.cancel();
         QCOMPARE(session.state(), ControlReconnect::State::Idle);
         QVERIFY(!session.isActive());
-
-        // The timer that was already queued when finalize ran must not restart the session.
         QVERIFY(!session.acceptsProbe(probe));
         QVERIFY(!session.prepareRetry(3));
         QVERIFY(!session.complete());
+    }
+
+    void aProbeFromASupersededSessionIsRejected()
+    {
+        ControlReconnect::Session session;
+        session.begin(true);
+        const auto firstProbe = session.beginProbe();
+
+        // A second disconnect restarts the session while the first probe is still in flight.
+        session.begin(true);
+        const auto secondProbe = session.beginProbe();
+
+        QVERIFY(!session.acceptsProbe(firstProbe));
+        QVERIFY(session.acceptsProbe(secondProbe));
     }
 };
 
