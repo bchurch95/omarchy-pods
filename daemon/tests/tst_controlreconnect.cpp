@@ -91,6 +91,7 @@ private slots:
         QVERIFY(!session.acceptsProbe(firstProbe));
 
         const auto secondProbe = session.beginProbe();
+        QVERIFY(firstProbe != secondProbe);
         QVERIFY(!session.acceptsProbe(firstProbe));
         QVERIFY(session.acceptsProbe(secondProbe));
     }
