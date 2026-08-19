@@ -22,7 +22,7 @@ AirpodsTrayApp::Enums::AirPodsModel getModelName(quint16 modelId)
         {0x0E20, AirPodsModel::AirPodsPro},
         {0x1420, AirPodsModel::AirPodsPro2Lightning},
         {0x2420, AirPodsModel::AirPodsPro2USBC},
-        // Apple ships the Pro 3 as product 0x2027, and this frame carries it big-endian.
+        // Apple product 0x2027 arrives byte-swapped, so data[3] is 0x27 and this key is 0x2720.
         {0x2720, AirPodsModel::AirPodsPro3}
     };
 
