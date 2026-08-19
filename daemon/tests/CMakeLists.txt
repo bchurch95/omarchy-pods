@@ -5,7 +5,7 @@
 # binary itself, since that would pull in BlueZ/PulseAudio/Qt6::Widgets.
 # Each test file is a single tst_*.cpp with QTEST_GUILESS_MAIN.
 
-find_package(Qt6 REQUIRED COMPONENTS Test Core)
+find_package(Qt6 REQUIRED COMPONENTS Test Core Bluetooth)
 
 # Centralized include path so tests can `#include "../eardetection.hpp"`
 # without each adding their own target_include_directories.
@@ -130,3 +130,11 @@ target_link_libraries(tst_qrcodeimageprovider
 target_include_directories(tst_qrcodeimageprovider PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 set_target_properties(tst_qrcodeimageprovider PROPERTIES AUTOMOC ON)
 add_test(NAME tst_qrcodeimageprovider COMMAND tst_qrcodeimageprovider -platform offscreen)
+
+openpods_add_test(tst_blemanager
+    tst_blemanager.cpp
+    ../ble/blemanager.cpp
+    ../ble/blemanager.h
+)
+# Only test that parses a QBluetoothDeviceInfo, so only one needing the module.
+target_link_libraries(tst_blemanager PRIVATE Qt6::Bluetooth)
