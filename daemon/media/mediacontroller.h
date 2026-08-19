@@ -66,6 +66,8 @@ private:
   PlayerStatusWatcher *playerStatusWatcher = nullptr;
   PulseAudioController *m_pulseAudio = nullptr;
   QString m_cachedA2dpProfile;
+  quint64 m_earDetectionGeneration = 0;
+  bool m_earOutPending = false;
 };
 
 #endif // MEDIACONTROLLER_H

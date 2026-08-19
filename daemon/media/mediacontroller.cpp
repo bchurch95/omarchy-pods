@@ -11,6 +11,10 @@
 #include <QRegularExpression>
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
+#include <QTimer>
+
+// Long enough to outlast an ANC or transparency reconfigure, short enough not to strand playback.
+static constexpr int bothPodsOutSettleMs = 1200;
 
 MediaController::MediaController(QObject *parent) : QObject(parent) {
   m_pulseAudio = new PulseAudioController(this);
@@ -44,6 +48,37 @@ void MediaController::handleEarDetection(EarDetection *earDetection)
             << primaryInEar << ", secondaryInEar=" << secondaryInEar
             << ", isAirPodsActive=" << isActiveOutputDeviceAirPods());
 
+  // An ANC or transparency change reports both pods out for a moment while the AirPods reconfigure.
+  if (!primaryInEar && !secondaryInEar)
+  {
+    // Keep the first deadline, so a repeated both-out report cannot defer the teardown forever.
+    if (m_earOutPending)
+      return;
+    m_earOutPending = true;
+    const quint64 generation = m_earDetectionGeneration;
+    QTimer::singleShot(bothPodsOutSettleMs, this, [this, earDetection, generation]() {
+      // A superseded callback must not clear the window a newer report opened.
+      if (generation != m_earDetectionGeneration)
+        return;
+
+      m_earOutPending = false;
+      if (earDetectionBehavior == Disabled)
+        return;
+
+      if (earDetection->isPrimaryInEar() || earDetection->isSecondaryInEar())
+        return;
+
+      if (isActiveOutputDeviceAirPods() && getCurrentMediaState() == Playing)
+        pause();
+      removeAudioOutputDevice();
+    });
+    return;
+  }
+
+  // Any in-ear report supersedes a pending transient both-out report.
+  ++m_earDetectionGeneration;
+  m_earOutPending = false;
+
   // First handle playback pausing based on selected behavior
   bool shouldPause = false;
   bool shouldResume = false;
@@ -68,27 +103,28 @@ void MediaController::handleEarDetection(EarDetection *earDetection)
     }
   }
 
-  // Then handle device profile switching
-  if (primaryInEar || secondaryInEar)
-  {
-    LOG_DEBUG("At least one AirPod is in ear");
-    activateA2dpProfile();
+  // Then handle device profile switching, with both pods out already returned above
+  LOG_DEBUG("At least one AirPod is in ear");
+  activateA2dpProfile();
 
-    // Resume if conditions are met and we previously paused
-    if (shouldResume && !pausedByAppServices.isEmpty() && isActiveOutputDeviceAirPods())
-    {
-      play();
-    }
-  }
-  else
+  // Resume if conditions are met and we previously paused
+  if (shouldResume && !pausedByAppServices.isEmpty() && isActiveOutputDeviceAirPods())
   {
-    LOG_DEBUG("Both AirPods are out of ear");
-    removeAudioOutputDevice();
+    play();
   }
 }
 
 void MediaController::setEarDetectionBehavior(EarDetectionBehavior behavior)
 {
+  if (earDetectionBehavior == behavior)
+  {
+    LOG_DEBUG("Ear detection behavior is already set to: " << behavior);
+    return;
+  }
+
+  // A pending both-out callback belongs to the policy that scheduled it, not to this one.
+  ++m_earDetectionGeneration;
+  m_earOutPending = false;
   earDetectionBehavior = behavior;
   LOG_INFO("Set ear detection behavior to: " << behavior);
 }
@@ -263,12 +299,18 @@ void MediaController::activateA2dpProfile() {
     return;
   }
 
-  LOG_INFO("Activating best output profile: " << preferredProfile);
-  if (!m_pulseAudio->setCardProfile(m_deviceOutputName, preferredProfile)) {
-    LOG_ERROR("Failed to activate profile: " << preferredProfile);
-    return;
+  // Re-applying the profile WirePlumber already set tears down the live sink under a playing stream.
+  const QString activeProfile = m_pulseAudio->getActiveCardProfile(m_deviceOutputName);
+  if (activeProfile == preferredProfile) {
+    LOG_INFO("A2DP profile already active: " << activeProfile);
+  } else {
+    LOG_INFO("Activating best output profile: " << preferredProfile);
+    if (!m_pulseAudio->setCardProfile(m_deviceOutputName, preferredProfile)) {
+      LOG_ERROR("Failed to activate profile: " << preferredProfile);
+      return;
+    }
+    LOG_INFO("Profile activated: " << preferredProfile);
   }
-  LOG_INFO("Profile activated: " << preferredProfile);
 
   // After A2DP activation the AirPods sink is live + selected as
   // default. Enable AVRCP 5%-grid snap on it now. AirPods stem-
