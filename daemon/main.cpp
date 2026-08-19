@@ -147,10 +147,16 @@ public:
                 // On startup after reboot, activate A2DP profile for already connected AirPods
                 QTimer::singleShot(2000, this, [this, address]()
                 {
+                    // A disconnect inside these two seconds would otherwise start a chain for a device that left.
+                    if (!areAirpodsConnected())
+                    {
+                        LOG_INFO("AirPods disconnected before the startup A2DP activation, skipping it");
+                        return;
+                    }
+
                     QString formattedAddress = address.toString().replace(":", "_");
-                    mediaController->setConnectedDeviceMacAddress(formattedAddress);
-                    mediaController->activateA2dpProfile();
                     LOG_INFO("A2DP profile activation attempted for AirPods found on startup");
+                    mediaController->activateA2dpProfileWithRetry(formattedAddress);
                 });
                 return;
             }
@@ -705,13 +711,10 @@ public slots:
             {
                 stopBleScanWhileConnected();
                 LOG_INFO("AirPods already connected after wake-up, re-activating A2DP profile");
-                mediaController->setConnectedDeviceMacAddress(
-                    m_deviceInfo->bluetoothAddress().replace(":", "_"));
-
                 // Profile may have been dropped during suspend; reassert.
                 QTimer::singleShot(1000, this, [this]() {
-                    mediaController->activateA2dpProfile();
                     LOG_INFO("A2DP profile activation attempted after system wake-up");
+                    mediaController->activateA2dpProfileWithRetry(m_deviceInfo->bluetoothAddress().replace(":", "_"));
                 });
             }
 
@@ -788,9 +791,8 @@ private slots:
             {
                 QString formattedAddress = address;
                 formattedAddress = formattedAddress.replace(":", "_");
-                mediaController->setConnectedDeviceMacAddress(formattedAddress);
-                mediaController->activateA2dpProfile();
                 LOG_INFO("A2DP profile activation attempted for newly connected device");
+                mediaController->activateA2dpProfileWithRetry(formattedAddress);
             }
         });
     }
@@ -798,6 +800,8 @@ private slots:
     void onDeviceDisconnected(const QBluetoothAddress &address)
     {
         LOG_INFO("Device disconnected: " << address.toString());
+        // A retry still in flight would reactivate a profile for the device that just went away.
+        mediaController->cancelPendingA2dpActivation();
         if (socket)
         {
             LOG_WARN("Socket is still open, closing it");
@@ -1063,10 +1067,13 @@ private slots:
         {
             parseMetadata(data);
             initiateMagicPairing();
-            mediaController->setConnectedDeviceMacAddress(m_deviceInfo->bluetoothAddress().replace(":", "_"));
             if (m_deviceInfo->getEarDetection()->oneOrMorePodsInEar()) // AirPods get added as output device only after this
             {
-                mediaController->activateA2dpProfile();
+                mediaController->activateA2dpProfileWithRetry(m_deviceInfo->bluetoothAddress().replace(":", "_"));
+            }
+            else
+            {
+                mediaController->setConnectedDeviceMacAddress(m_deviceInfo->bluetoothAddress().replace(":", "_"));
             }
             // Only on the affected controller, where onDeviceDisconnected restarts it.
             stopBleScanWhileConnected();
