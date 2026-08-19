@@ -97,6 +97,7 @@ omarchy pkg add cmake ninja qt6-connectivity qt6-tools qt6-declarative pkgconf l
 cd ~/.config/omarchy/plugins/io.github.thisisgm.omapods/daemon
 cmake -B build -G Ninja -DBUILD_TESTING=OFF && cmake --build build
 cmake --install build --prefix ~/.local
+systemctl --user daemon-reload
 systemctl --user enable librepods.service
 systemctl --user restart librepods.service
 ```
