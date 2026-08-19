@@ -274,29 +274,20 @@ bool MediaController::restartWirePlumber() {
 }
 
 bool MediaController::activateA2dpProfile() {
-  return activateA2dpProfile(/*allowWirePlumberRestart=*/true);
-}
-
-bool MediaController::activateA2dpProfile(bool allowWirePlumberRestart) {
   if (connectedDeviceMacAddress.isEmpty() || m_deviceOutputName.isEmpty()) {
-    // Common right after connect: BlueZ has the device but PipeWire/
-    // WirePlumber hasn't published the bluez5 card object yet. This is
-    // not fatal — callers retry on false, re-resolving the card name
-    // via setConnectedDeviceMacAddress() on the next attempt.
+    // Usual right after connect, PipeWire has not published the bluez5 card yet, and callers retry.
     LOG_WARN("Connected device MAC address or output name is empty, cannot activate A2DP profile");
     return false;
   }
 
   if (!isA2dpProfileAvailable()) {
-    if (!allowWirePlumberRestart) {
-      // Already restarted WirePlumber once for this retry chain (see
-      // attemptA2dpActivation). Restarting again on every subsequent
-      // attempt would block this thread for ~2s each time without the
-      // card having had a chance to settle in between.
-      LOG_WARN("A2DP profile still not available, not restarting WirePlumber again this chain");
+    // A restart blocks this thread for about 2s, so a chain gets one however many attempts it takes.
+    if (m_wirePlumberRestartedThisChain) {
+      LOG_WARN("A2DP profile still not available, WirePlumber was already restarted for this chain");
       return false;
     }
     LOG_WARN("A2DP profile not available, attempting to restart WirePlumber");
+    m_wirePlumberRestartedThisChain = true;
     if (restartWirePlumber()) {
       m_deviceOutputName = getAudioDeviceName();
       if (!isA2dpProfileAvailable()) {
@@ -343,12 +334,14 @@ bool MediaController::activateA2dpProfile(bool allowWirePlumberRestart) {
 }
 
 void MediaController::activateA2dpProfileWithRetry(const QString &macAddress) {
-  if (macAddress.isEmpty()) return;
+  if (macAddress.isEmpty()) {
+    LOG_WARN("No MAC address for the connected device, cannot start A2DP profile activation");
+    return;
+  }
 
-  // A fresh generation supersedes any chain already in flight for a
-  // previous connect/wake/metadata event, so only the newest request's
-  // queued callbacks will still act.
+  // A fresh generation supersedes any chain still in flight, so only the newest request acts.
   const quint64 generation = ++m_a2dpRetryGeneration;
+  m_wirePlumberRestartedThisChain = false;
   attemptA2dpActivation(macAddress, generation, 0);
 }
 
@@ -357,19 +350,12 @@ void MediaController::cancelPendingA2dpActivation() {
 }
 
 void MediaController::attemptA2dpActivation(const QString &macAddress, quint64 generation, int attempt) {
-  // Superseded by a newer activation request, or the device disconnected
-  // via cancelPendingA2dpActivation() -- don't restore a stale MAC address
-  // or reactivate a profile for a device that's no longer current.
+  // A newer request or a disconnect superseded this chain, so it must not restore a stale device.
   if (generation != m_a2dpRetryGeneration) return;
 
-  // PipeWire/WirePlumber publish the bluez5 card for a freshly-connected
-  // device asynchronously, with no fixed timing guarantee, so the first
-  // attempt or two commonly fail with the card simply not existing yet.
-  // A WirePlumber restart (see activateA2dpProfile) blocks this thread
-  // for ~2s, so only the first attempt in a chain is allowed to trigger
-  // one; later attempts just re-resolve and re-check.
+  // PipeWire publishes the bluez5 card asynchronously, so the first attempts commonly find nothing.
   setConnectedDeviceMacAddress(macAddress);
-  if (activateA2dpProfile(/*allowWirePlumberRestart=*/attempt == 0)) {
+  if (activateA2dpProfile()) {
     LOG_INFO("A2DP profile activated (attempt " << (attempt + 1) << ")");
     return;
   }
@@ -392,8 +378,7 @@ QString MediaController::getActiveProfile() {
 }
 
 void MediaController::removeAudioOutputDevice() {
-  // A retry queued by a still-in-flight activation chain must not
-  // resurrect the sink right after we tear it down here.
+  // A retry still in flight would resurrect the sink right after this tears it down.
   cancelPendingA2dpActivation();
 
   if (connectedDeviceMacAddress.isEmpty() || m_deviceOutputName.isEmpty()) {

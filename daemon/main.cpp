@@ -147,6 +147,10 @@ public:
                 // On startup after reboot, activate A2DP profile for already connected AirPods
                 QTimer::singleShot(2000, this, [this, address]()
                 {
+                    // A disconnect inside these two seconds would otherwise start a chain for a device that left.
+                    if (!areAirpodsConnected())
+                        return;
+
                     QString formattedAddress = address.toString().replace(":", "_");
                     LOG_INFO("A2DP profile activation attempted for AirPods found on startup");
                     mediaController->activateA2dpProfileWithRetry(formattedAddress);
@@ -793,12 +797,8 @@ private slots:
     void onDeviceDisconnected(const QBluetoothAddress &address)
     {
         LOG_INFO("Device disconnected: " << address.toString());
-        // A retry queued by an in-flight A2DP activation chain must not
-        // fire after this disconnect and restore/reactivate a profile for
-        // a device that just went away.
-        if (mediaController) {
-            mediaController->cancelPendingA2dpActivation();
-        }
+        // A retry still in flight would reactivate a profile for the device that just went away.
+        mediaController->cancelPendingA2dpActivation();
         if (socket)
         {
             LOG_WARN("Socket is still open, closing it");
