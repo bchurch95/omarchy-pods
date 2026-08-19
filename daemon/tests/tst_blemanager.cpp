@@ -96,6 +96,8 @@ void TestBleManager::realAirPodsFrameIsParsed()
     BleInfo parsed;
 
     QCOMPARE(parseFrame(QByteArray::fromHex(airPodsFrameHex), &parsed), 1);
+    // The capture is an AirPods Pro 3, model id 0x2720 big-endian over data[3..4].
+    QCOMPARE(int(parsed.modelName), int(AirpodsTrayApp::Enums::AirPodsModel::AirPodsPro3));
     // Decoded from the capture: 0x8f is a case nibble of 15 meaning absent, 0x04 is idle.
     QCOMPARE(parsed.caseBattery, -1);
     QCOMPARE(parsed.connectionState, BleInfo::ConnectionState::IDLE);
