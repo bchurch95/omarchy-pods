@@ -46,6 +46,7 @@
 #include "ble/bleutils.h"
 #include "QRCodeImageProvider.hpp"
 #include "systemsleepmonitor.hpp"
+#include "controlreconnect.hpp"
 
 using namespace AirpodsTrayApp::Enums;
 
@@ -111,6 +112,14 @@ public:
         monitor = new BluetoothMonitor(this);
         connect(monitor, &BluetoothMonitor::deviceConnected, this, &AirPodsTrayApp::bluezDeviceConnected);
         connect(monitor, &BluetoothMonitor::deviceDisconnected, this, &AirPodsTrayApp::bluezDeviceDisconnected);
+        connect(monitor, &BluetoothMonitor::deviceConnectionProbeFinished,
+                this, &AirPodsTrayApp::controlConnectionProbeFinished);
+
+        // The control socket can drop while BlueZ keeps A2DP up, so Device1::Connected never rises again.
+        m_controlReconnectTimer = new QTimer(this);
+        m_controlReconnectTimer->setSingleShot(true);
+        connect(m_controlReconnectTimer, &QTimer::timeout,
+                this, &AirPodsTrayApp::attemptControlReconnect);
 
         connect(m_bleManager, &BleManager::deviceFound, this, &AirPodsTrayApp::bleDeviceFound);
         connect(m_deviceInfo->getBattery(), &Battery::primaryChanged, this, &AirPodsTrayApp::primaryChanged);
@@ -780,12 +789,24 @@ private slots:
 
     void bluezDeviceConnected(const QString &address, const QString &name)
     {
+        rememberAirPodsDevice(address, name);
+        m_disconnectFinalized = false;
+
         QBluetoothDeviceInfo device(QBluetoothAddress(address), name, 0);
-        connectToDevice(device);
+        const bool recovering = m_controlRecovery.isActive();
+        if (recovering) {
+            if (m_controlRecovery.state() == ControlReconnect::State::ConnectingSocket && socket) {
+                LOG_DEBUG("Control recovery connection is already in progress");
+                return;
+            }
+            m_controlReconnectTimer->stop();
+            m_controlRecovery.beginConnection();
+        }
+        connectToDevice(device, recovering);
 
         // After system reboot, AirPods might be connected but A2DP profile not active
         // Attempt to activate A2DP profile after a delay to ensure connection is established
-        QTimer::singleShot(2000, this, [this, address]()
+        if (!recovering) QTimer::singleShot(2000, this, [this, address]()
         {
             if (!address.isEmpty())
             {
@@ -810,6 +831,22 @@ private slots:
             socket->deleteLater();
             socket = nullptr;
         }
+
+        // BlueZ lowers Connected while rebuilding a profile, so try the control socket before tearing down.
+        scheduleControlReconnect(address.toString(), m_lastAirPodsName,
+                                 QStringLiteral("BlueZ disconnect event"));
+    }
+
+    void finalizeDeviceDisconnected(const QString &address)
+    {
+        if (m_disconnectFinalized) {
+            return;
+        }
+        m_disconnectFinalized = true;
+        m_controlReconnectTimer->stop();
+        m_controlRecovery.cancel();
+        m_retryCount = 0;
+
         if (phoneSocket && phoneSocket->isOpen())
         {
             phoneSocket->write(AirPodsPackets::Connection::AIRPODS_DISCONNECTED);
@@ -833,6 +870,117 @@ private slots:
         if (trayManager) {
             trayManager->resetTrayIcon();
         }
+    }
+
+    void rememberAirPodsDevice(const QString &address, const QString &name)
+    {
+        if (!address.isEmpty()) {
+            m_lastAirPodsAddress = address;
+        }
+        if (!name.isEmpty()) {
+            m_lastAirPodsName = name;
+        }
+    }
+
+    void scheduleControlReconnect(const QString &address, const QString &name,
+                                  const QString &reason)
+    {
+        rememberAirPodsDevice(address, name);
+        if (m_lastAirPodsAddress.isEmpty() || m_isSuspending) {
+            finalizeDeviceDisconnected(address);
+            return;
+        }
+
+        const bool bleScanWasActive = m_bleManager->isScanning();
+
+        // A live scan delays the L2CAP connect this recovery depends on, so pause it and restore after.
+        m_bleManager->stopScan();
+
+        if (!m_controlRecovery.isActive()) {
+            m_controlRecovery.begin(bleScanWasActive);
+            m_disconnectFinalized = false;
+            LOG_INFO("Scheduling AirPods control reconnect after " << reason);
+            m_controlReconnectTimer->start(ControlReconnect::firstDelayMs);
+        } else if (m_controlRecovery.state() == ControlReconnect::State::ConnectingSocket) {
+            scheduleControlRecoveryRetry(reason);
+        }
+    }
+
+    void attemptControlReconnect()
+    {
+        if (m_controlRecovery.state() != ControlReconnect::State::Waiting) {
+            return;
+        }
+
+        if (areAirpodsConnected()) {
+            finishControlRecovery();
+            return;
+        }
+
+        const QString address = m_lastAirPodsAddress;
+        if (address.isEmpty()) {
+            finalizeDeviceDisconnected(address);
+            return;
+        }
+
+        const quint64 requestId = m_controlRecovery.beginProbe();
+        monitor->probeDeviceConnected(address, requestId);
+    }
+
+    void controlConnectionProbeFinished(const QString &address, quint64 requestId,
+                                        bool connected)
+    {
+        if (address.compare(m_lastAirPodsAddress, Qt::CaseInsensitive) != 0
+            || !m_controlRecovery.acceptsProbe(requestId)) {
+            LOG_DEBUG("Ignoring stale AirPods connection probe");
+            return;
+        }
+
+        if (connected) {
+            ++m_reconnectAttemptsTotal;
+            LOG_INFO("Reconnecting AirPods control link (attempt total="
+                     << m_reconnectAttemptsTotal << ")");
+            m_controlRecovery.beginConnection();
+            QBluetoothDeviceInfo device(QBluetoothAddress(address), m_lastAirPodsName, 0);
+            connectToDevice(device, true);
+            return;
+        }
+
+        scheduleControlRecoveryRetry(QStringLiteral("BlueZ did not report the device as connected"));
+    }
+
+    void scheduleControlRecoveryRetry(const QString &reason)
+    {
+        if (m_controlRecovery.prepareRetry(m_retryAttempts)) {
+            const int jitter = static_cast<int>(QRandomGenerator::global()->bounded(ControlReconnect::jitterRangeMs));
+            const int attempt = m_controlRecovery.completedAttempts();
+            const int delay = ControlReconnect::delayMs(attempt, jitter);
+            LOG_INFO("Retrying AirPods control recovery after " << reason << " ("
+                     << attempt << "/" << m_retryAttempts << ", delay=" << delay << "ms)");
+            m_controlReconnectTimer->start(delay);
+            return;
+        }
+
+        ++m_reconnectFailuresTotal;
+        LOG_INFO("AirPods control recovery exhausted for " << m_lastAirPodsAddress);
+        finalizeDeviceDisconnected(m_lastAirPodsAddress);
+    }
+
+    void finishControlRecovery()
+    {
+        if (!m_controlRecovery.isActive()) {
+            return;
+        }
+
+        m_controlReconnectTimer->stop();
+        const bool restoreBleScan = m_controlRecovery.complete();
+        m_disconnectFinalized = false;
+        if (restoreBleScan) {
+            m_bleManager->startScan();
+        } else {
+            m_bleManager->stopScan();
+        }
+        LOG_INFO("AirPods control link recovered");
     }
 
     void bluezDeviceDisconnected(const QString &address, const QString &name)
@@ -911,7 +1059,7 @@ private slots:
                                                             : "In case";
     }
 
-    void connectToDevice(const QBluetoothDeviceInfo &device)
+    void connectToDevice(const QBluetoothDeviceInfo &device, bool controlRecovery = false)
     {
         if (socket && socket->isOpen() && socket->peerAddress() == device.address())
         {
@@ -920,6 +1068,7 @@ private slots:
         }
 
         LOG_INFO("Connecting to device: " << device.name());
+        rememberAirPodsDevice(device.address().toString(), device.name());
 
         // Clean up any existing socket (defensive: disconnect first so any
         // queued slot can't reach a half-dead object).
@@ -931,12 +1080,18 @@ private slots:
         }
 
         QBluetoothSocket *localSocket = new QBluetoothSocket(QBluetoothServiceInfo::L2capProtocol, this);
+        localSocket->setProperty("openpodsControlRecovery", controlRecovery);
         socket = localSocket;
 
         // Connection handler
         auto handleConnection = [this, localSocket]()
         {
+            localSocket->setProperty("openpodsControlConnected", true);
             m_retryCount = 0;
+            m_disconnectFinalized = false;
+            if (localSocket->property("openpodsControlRecovery").toBool()) {
+                finishControlRecovery();
+            }
             stopBleScanWhileConnected();
             connect(localSocket, &QBluetoothSocket::readyRead, this, [this, localSocket]()
                     {
@@ -953,6 +1108,20 @@ private slots:
         {
             LOG_ERROR("Socket error: " << error << ", " << localSocket->errorString());
 
+            // Once a control link has been established, a later socket error
+            // is a link-loss event, not another initial-connect failure.
+            if (localSocket->property("openpodsControlConnected").toBool()) {
+                handleControlSocketLoss(device, localSocket,
+                                        QStringLiteral("socket error"));
+                return;
+            }
+
+            if (localSocket->property("openpodsControlRecovery").toBool()) {
+                handleControlConnectFailure(device, localSocket,
+                                            QStringLiteral("socket error before connection"));
+                return;
+            }
+
             if (m_retryCount < m_retryAttempts)
             {
                 m_retryCount++;
@@ -962,9 +1131,8 @@ private slots:
                 // Fixed-delay 1500ms hammered BlueZ if multiple peers were
                 // also retrying after a controller reset — exponential
                 // spacing + jitter avoids the thundering-herd reconnect.
-                const int base = 1000 * (1 << (m_retryCount - 1));
-                const int jitter = static_cast<int>(QRandomGenerator::global()->bounded(500));
-                const int delay = base + jitter;
+                const int jitter = static_cast<int>(QRandomGenerator::global()->bounded(ControlReconnect::jitterRangeMs));
+                const int delay = ControlReconnect::delayMs(m_retryCount, jitter);
                 LOG_INFO("Retrying connection (attempt " << m_retryCount << "/" << m_retryAttempts
                          << ", delay=" << delay << "ms, total=" << m_reconnectAttemptsTotal << ")");
                 QTimer::singleShot(delay, this, [this, device]()
@@ -982,10 +1150,59 @@ private slots:
         connect(localSocket, &QBluetoothSocket::connected, this, handleConnection);
         connect(localSocket, QOverload<QBluetoothSocket::SocketError>::of(&QBluetoothSocket::errorOccurred),
                 this, handleError);
+        connect(localSocket, &QBluetoothSocket::disconnected, this,
+                [this, device, localSocket]() {
+                    if (!localSocket->property("openpodsControlConnected").toBool()) {
+                        if (localSocket->property("openpodsControlRecovery").toBool()) {
+                            handleControlConnectFailure(
+                                device, localSocket,
+                                QStringLiteral("socket disconnected before connection"));
+                        }
+                        return;
+                    }
+                    handleControlSocketLoss(device, localSocket,
+                                            QStringLiteral("socket disconnected"));
+                });
 
         localSocket->connectToService(device.address(), QBluetoothUuid("74ec2172-0bad-4d01-8f77-997b2be0722a"));
         m_deviceInfo->setBluetoothAddress(device.address().toString());
         notifyAndroidDevice();
+    }
+
+    void handleControlConnectFailure(const QBluetoothDeviceInfo &device,
+                                     QBluetoothSocket *failedSocket,
+                                     const QString &reason)
+    {
+        if (!failedSocket || socket != failedSocket || !m_controlRecovery.isActive()) {
+            return;
+        }
+
+        LOG_WARN("AirPods control reconnect failed: " << reason);
+        failedSocket->disconnect(this);
+        failedSocket->close();
+        failedSocket->deleteLater();
+        socket = nullptr;
+        rememberAirPodsDevice(device.address().toString(), device.name());
+        scheduleControlRecoveryRetry(reason);
+    }
+
+    void handleControlSocketLoss(const QBluetoothDeviceInfo &device,
+                                 QBluetoothSocket *lostSocket,
+                                 const QString &reason)
+    {
+        // errorOccurred and disconnected commonly arrive for the same loss;
+        // only the first callback for the currently-owned socket may recover.
+        if (!lostSocket || socket != lostSocket) {
+            return;
+        }
+
+        LOG_WARN("AirPods control link lost: " << reason);
+        lostSocket->disconnect(this);
+        lostSocket->close();
+        lostSocket->deleteLater();
+        socket = nullptr;
+
+        scheduleControlReconnect(device.address().toString(), device.name(), reason);
     }
 
     void parseData(const QByteArray &data)
@@ -1367,11 +1584,16 @@ private:
     // Null in a headless run; every use needs a guard.
     TrayIconManager *trayManager = nullptr;
     BluetoothMonitor *monitor;
+    QTimer *m_controlReconnectTimer = nullptr;
     QSettings *m_settings;
     AutoStartManager *m_autoStartManager;
     int m_retryAttempts = 3;
     int m_retryCount = 0;
+    ControlReconnect::Session m_controlRecovery;
     bool m_isSuspending = false;
+    bool m_disconnectFinalized = false;
+    QString m_lastAirPodsAddress;
+    QString m_lastAirPodsName;
 
     // Reliability counters — process-lifetime totals, logged on quit.
     // Exposed to QML readers via the public getters below.

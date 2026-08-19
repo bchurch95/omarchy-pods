@@ -112,6 +112,42 @@ bool BluetoothMonitor::checkAlreadyConnectedDevices()
     return deviceFound;
 }
 
+void BluetoothMonitor::probeDeviceConnected(const QString &macAddress, quint64 requestId)
+{
+    if (macAddress.isEmpty() || !m_dbus.isConnected()) {
+        emit deviceConnectionProbeFinished(macAddress, requestId, false);
+        return;
+    }
+
+    QDBusInterface objectManager("org.bluez", "/", "org.freedesktop.DBus.ObjectManager", m_dbus);
+    auto *watcher = new QDBusPendingCallWatcher(objectManager.asyncCall("GetManagedObjects"), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [this, watcher, macAddress, requestId](QDBusPendingCallWatcher *) {
+                bool connected = false;
+                const QDBusMessage reply = watcher->reply();
+                if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().isEmpty()) {
+                    LOG_WARN("Failed to query BlueZ connection state for " << macAddress
+                             << ": " << reply.errorMessage());
+                } else {
+                    const QDBusArgument arg = reply.arguments().constFirst().value<QDBusArgument>();
+                    ManagedObjectList managedObjects;
+                    arg >> managedObjects;
+
+                    for (auto it = managedObjects.constBegin(); it != managedObjects.constEnd(); ++it) {
+                        const QVariantMap deviceProps = it.value().value("org.bluez.Device1");
+                        if (deviceProps.value("Address").toString().compare(
+                                macAddress, Qt::CaseInsensitive) == 0) {
+                            connected = deviceProps.value("Connected").toBool();
+                            break;
+                        }
+                    }
+                }
+
+                emit deviceConnectionProbeFinished(macAddress, requestId, connected);
+                watcher->deleteLater();
+            });
+}
+
 void BluetoothMonitor::onPropertiesChanged(const QDBusMessage &message)
 {
     // Filter at the path level: only BlueZ Device1 objects, never the
