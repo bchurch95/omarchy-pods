@@ -242,9 +242,17 @@ Panel {
               width: parent.width
               spacing: Style.space(6)
 
-              PodRow { width: parent.width; label: "Left"; pod: pods.leftPod }
-              PodRow { width: parent.width; label: "Right"; pod: pods.rightPod }
+              // A Max has one battery and no case, so the pod trio would draw two dashes and a phantom case.
               PodRow {
+                visible: pods.isHeadset
+                width: parent.width
+                label: "Headphones"
+                pod: ({ level: pods.headsetBattery.level, charging: pods.headsetBattery.charging, inEar: false })
+              }
+              PodRow { visible: !pods.isHeadset; width: parent.width; label: "Left"; pod: pods.leftPod }
+              PodRow { visible: !pods.isHeadset; width: parent.width; label: "Right"; pod: pods.rightPod }
+              PodRow {
+                visible: !pods.isHeadset
                 width: parent.width
                 label: "Case"
                 pod: ({ level: pods.caseBattery.level, charging: pods.caseBattery.charging, inEar: false })
@@ -402,7 +410,8 @@ Panel {
         opacity: 0.6
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
-        Layout.preferredWidth: Style.space(44)
+        // Style.space(44) was cut for Left, Right and Case, so a longer label takes the room it needs.
+        Layout.preferredWidth: Math.max(Style.space(44), implicitWidth + Style.space(10))
       }
 
       Rectangle {

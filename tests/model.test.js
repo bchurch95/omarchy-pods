@@ -81,6 +81,23 @@ check("an elided error is one line", long.indexOf("\n"), -1)
 check("an elided error fits the row", long.length <= Model.MAX_ERROR_CHARS, true)
 check("elideError copes with nothing", Model.elideError(null), "")
 
+// A Max sends one battery under "headset" and no pods at all, so the panel needs the flag to pick a shape.
+const max = Model.parseStatus('{"connected":true,"device_name":"AirPods Max","headset":{"available":true,"charging":false,"level":100},"is_headset":true,"model_name":"AirPods Max","noise_mode":1,"schema_version":1}')
+check("max line parses", max.ok, true)
+check("max is flagged a headset", max.isHeadset, true)
+check("max headset level", max.headset, { level: 100, charging: false })
+check("max has no pods", max.left.level, Model.LEVEL_UNKNOWN)
+check("max has no case", max.caseBattery.level, Model.LEVEL_UNKNOWN)
+
+// Between connect and the first battery packet the daemon sends the flag with no headset object at all.
+const maxFresh = Model.parseStatus('{"connected":true,"is_headset":true,"noise_mode":1,"schema_version":1}')
+check("max before any battery packet is still a headset", maxFresh.isHeadset, true)
+check("max before any battery packet has no level", maxFresh.headset.level, Model.LEVEL_UNKNOWN)
+
+// A daemon too old to send is_headset must keep drawing the pod rows rather than an empty headset row.
+check("no is_headset key means earbuds", good.isHeadset, false)
+check("no headset key is unknown, not zero", good.headset.level, Model.LEVEL_UNKNOWN)
+
 if (failures > 0) {
   console.log(failures + " failed")
   Deno.exit(1)

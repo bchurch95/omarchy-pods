@@ -13,6 +13,7 @@ Item {
   property string deviceName: ""
   property string modelName: ""
   property bool isProSeries: false
+  property bool isHeadset: false
   property bool supportsNoiseOff: true
   property int noiseMode: Model.NOISE_UNKNOWN
   property int adaptiveNoiseLevel: 0
@@ -24,6 +25,7 @@ Item {
   property var leftPod: Model.defaultPod()
   property var rightPod: Model.defaultPod()
   property var caseBattery: ({ level: Model.LEVEL_UNKNOWN, charging: false })
+  property var headsetBattery: ({ level: Model.LEVEL_UNKNOWN, charging: false })
   property string lastError: ""
   property string actionStatus: ""
 
@@ -35,9 +37,11 @@ Item {
   readonly property bool hasAirPods: daemonReachable && connected
   // Battery keeps arriving over BLE while the audio link is down, so it is not gated on connected.
   readonly property bool hasBattery: daemonReachable
-    && (leftPod.level !== Model.LEVEL_UNKNOWN
-      || rightPod.level !== Model.LEVEL_UNKNOWN
-      || caseBattery.level !== Model.LEVEL_UNKNOWN)
+    && (isHeadset
+      ? headsetBattery.level !== Model.LEVEL_UNKNOWN
+      : (leftPod.level !== Model.LEVEL_UNKNOWN
+        || rightPod.level !== Model.LEVEL_UNKNOWN
+        || caseBattery.level !== Model.LEVEL_UNKNOWN))
 
   // How long an optimistic value is held before the daemon's own state wins.
   readonly property int settleHoldMs: 4000
@@ -90,10 +94,12 @@ Item {
     deviceName = status.deviceName
     modelName = status.modelName
     isProSeries = status.isProSeries
+    isHeadset = status.isHeadset
     supportsNoiseOff = status.supportsNoiseOff
     leftPod = status.left
     rightPod = status.right
     caseBattery = status.caseBattery
+    headsetBattery = status.headset
     lidState = status.lidState
 
     noiseMode = _settle("noiseMode", status.noiseMode)

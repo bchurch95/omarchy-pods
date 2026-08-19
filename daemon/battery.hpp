@@ -157,6 +157,7 @@ public:
         return true;
     }
 
+    // Sample input: 16 decrypted bytes, [1] and [2] the pods (a headset uses [1] alone), [3] the case, high bit charging.
     bool parseEncryptedPacket(const QByteArray &packet, bool isLeftPodPrimary, bool podInCase, bool isHeadset)
     {
         // Validate packet size (expect 16 bytes based on provided payloads)
@@ -179,15 +180,14 @@ public:
         auto [isRightCharging, rawRightBattery] = formatBattery(rawRightBatteryByte);
         auto [isCaseCharging, rawCaseBattery] = formatBattery(rawCaseBatteryByte);
         if (isHeadset) {
-            int batteries[] = {rawLeftBattery, rawRightBattery, rawCaseBattery};
-            bool statuses[] = {isLeftCharging, isRightCharging, isCaseCharging};
-            // Find the first battery that isn't CHAR_MAX
-            auto it = std::find_if(std::begin(batteries), std::end(batteries), [](int i) { return i != CHAR_MAX; });
-            if (it != std::end(batteries)) {
-                std::size_t idx = it - std::begin(batteries);
-                int battery = *it;
-                primaryPod = Component::Headset;
-                states[Component::Headset] =  {static_cast<quint8>(battery), statuses[idx] ? BatteryStatus::Charging : BatteryStatus::Discharging};
+            // A headset keeps its one battery in byte 1, and the primary flip only renames that byte.
+            auto [headsetCharging, headsetLevel] =
+                formatBattery(static_cast<unsigned char>(packet.at(1)));
+            primaryPod = Component::Headset;
+            // formatBattery masks to 0-127, so this also drops the 0x7F that means unknown.
+            if (headsetLevel <= 100) {
+                states[Component::Headset] = {static_cast<quint8>(headsetLevel),
+                    headsetCharging ? BatteryStatus::Charging : BatteryStatus::Discharging};
             }
         } else {
             if (rawLeftBattery == CHAR_MAX) {

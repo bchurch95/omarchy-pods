@@ -1207,7 +1207,10 @@ private slots:
             // is -1 when the broadcast nibble was 15 (unknown); the
             // setter skips those so we don't clobber a valid prior
             // reading.
-            m_deviceInfo->getBattery()->setCaseFromBle(device.caseBattery, device.caseCharging);
+            // A Max has no case, and its nibble decodes to 0 rather than the 15 that means unknown.
+            if (!isModelHeadset(m_deviceInfo->model())) {
+                m_deviceInfo->getBattery()->setCaseFromBle(device.caseBattery, device.caseCharging);
+            }
             m_deviceInfo->getEarDetection()->overrideEarDetectionStatus(device.isPrimaryInEar, device.isSecondaryInEar);
             m_lidState = device.lidState;
         }
@@ -1419,6 +1422,12 @@ public:
             caseObj.insert("level",    b->getCaseLevel());
             caseObj.insert("charging", b->isCaseCharging());
             status.insert("case", caseObj);
+            // A Max reports one battery in Component::Headset, which left, right and case cannot express.
+            QJsonObject headsetObj;
+            headsetObj.insert("available", b->isHeadsetAvailable());
+            headsetObj.insert("level",    b->getHeadsetLevel());
+            headsetObj.insert("charging", b->isHeadsetCharging());
+            status.insert("headset", headsetObj);
         }
         status.insert("reconnect_attempts_total", reconnectAttemptsTotal());
         status.insert("reconnect_failures_total", reconnectFailuresTotal());
@@ -1439,6 +1448,8 @@ public:
         status.insert("model_name", d ? modelDisplayName(d->model()) : QString());
         status.insert("model_int", d ? static_cast<int>(d->model()) : 0);
         status.insert("is_pro_series", d ? isProSeriesAirPods(d->model()) : false);
+        // The panel needs the shape before any battery packet has arrived.
+        status.insert("is_headset", d ? isModelHeadset(d->model()) : false);
         status.insert("supports_noise_off", d ? supportsNoiseOff(d->model()) : true);
         // Raw "A<NNNN>" code from the AAP metadata packet. Useful
         // for debugging new/unrecognized models — if a fresh
