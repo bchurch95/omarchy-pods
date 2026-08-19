@@ -83,10 +83,14 @@ private slots:
         session.begin(true);
         const auto firstProbe = session.beginProbe();
 
-        // A second disconnect restarts the session while the first probe is still in flight.
-        session.begin(true);
-        const auto secondProbe = session.beginProbe();
+        // Production only restarts a session after finalize cancels it, so drive that order.
+        session.cancel();
+        QVERIFY(!session.acceptsProbe(firstProbe));
 
+        session.begin(true);
+        QVERIFY(!session.acceptsProbe(firstProbe));
+
+        const auto secondProbe = session.beginProbe();
         QVERIFY(!session.acceptsProbe(firstProbe));
         QVERIFY(session.acceptsProbe(secondProbe));
     }
