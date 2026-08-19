@@ -112,12 +112,18 @@ which is where the panel finds `librepods-ctl`. The unit is bound to
 ```bash
 systemctl --user disable --now librepods.service
 xargs rm -f < ~/.config/omarchy/plugins/io.github.thisisgm.omapods/daemon/build/install_manifest.txt
+rm -rf ~/.config/AirPodsTrayApp ~/.local/state/librepods
 omarchy plugin remove io.github.thisisgm.omapods
 ```
 
 The daemon installs into `~/.local`, so it outlives the plugin. CMake lists what it
 put there in `install_manifest.txt`, which lives in the build tree, so that line has
 to run before the plugin directory goes.
+
+`~/.config/AirPodsTrayApp` holds the paired device's name and its `magicAccIRK` and
+`magicAccEncKey`, which are pairing secrets, so the directory and the file are created
+owner only and both go with the plugin. `~/.local/state/librepods/status.json` is the
+published status line the panel reads, and it goes too.
 
 ## Keyboard
 

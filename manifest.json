@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.thisisgm.omapods",
   "name": "AirPods",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "author": "GM",
   "license": "MIT",
   "description": "AirPods in the Omarchy bar: per-pod and case battery, listening mode, adaptive noise level, conversation awareness, one-bud ANC and ear detection.",

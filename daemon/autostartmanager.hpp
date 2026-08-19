@@ -5,6 +5,7 @@
 #include <QSettings>
 #include <QStandardPaths>
 #include <QFile>
+#include <QSaveFile>
 #include <QDir>
 #include <QCoreApplication>
 
@@ -68,26 +69,21 @@ private:
                 QCoreApplication::applicationName().toLower(),
                 QCoreApplication::applicationName() + " autostart");
 
-        // Atomic write: open<tmp> -> write -> close -> rename. No reader
-        // can observe a half-written desktop file even if we race with
-        // GNOME's autostart scanner or get killed mid-write.
-        const QString tmpPath = m_autostartFilePath + ".tmp";
-        QFile tmp(tmpPath);
-        if (!tmp.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-            qWarning() << "Failed to open autostart tmp:" << tmp.errorString();
+        // QSaveFile writes a randomly named temporary and renames it over the target, so
+        // no reader sees half a file and no symlink at a guessable path takes the write.
+        QSaveFile file(m_autostartFilePath);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            qWarning() << "Failed to open autostart file:" << file.errorString();
             return;
         }
-        if (tmp.write(content.toUtf8()) != content.toUtf8().size()) {
-            qWarning() << "Short write to autostart tmp";
-            tmp.close();
-            QFile::remove(tmpPath);
+        const QByteArray payload = content.toUtf8();
+        if (file.write(payload) != payload.size()) {
+            qWarning() << "Short write to autostart file";
+            file.cancelWriting();
             return;
         }
-        tmp.close();
-        QFile::remove(m_autostartFilePath); // QFile::rename does not replace
-        if (!QFile::rename(tmpPath, m_autostartFilePath)) {
-            qWarning() << "Failed to rename autostart tmp into place";
-            QFile::remove(tmpPath);
+        if (!file.commit()) {
+            qWarning() << "Failed to write autostart file:" << file.errorString();
         }
     }
 

@@ -1,6 +1,7 @@
 #include <QSettings>
 #include <QLocalServer>
 #include <QSaveFile>
+#include <QFileInfo>
 #include <QLocalSocket>
 #include <QApplication>
 #include <QQmlApplicationEngine>
@@ -76,6 +77,7 @@ public:
     {
         QLoggingCategory::setFilterRules(QString("openpods.debug=%1").arg(debugMode ? "true" : "false"));
         LOG_INFO("Initializing OpenPods");
+        restrictSettingsAccess();
 
         m_notifier->setEnabled(loadNotificationsEnabled());
         connect(m_notifier, &Notifier::enabledChanged, this, &AirPodsTrayApp::saveNotificationsEnabled);
@@ -650,6 +652,21 @@ public slots:
         }
     }
 
+    // The settings file holds the pairing keys, so keep it and its directory owner only.
+    void restrictSettingsAccess()
+    {
+        if (!m_settings) {
+            return;
+        }
+        m_settings->sync();
+        const QString file = m_settings->fileName();
+        QFile::setPermissions(QFileInfo(file).absolutePath(),
+                              QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+        if (QFile::exists(file)) {
+            QFile::setPermissions(file, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+        }
+    }
+
     bool loadCrossDeviceEnabled() { return m_settings->value("crossdevice/enabled", false).toBool(); }
     void saveCrossDeviceEnabled() { m_settings->setValue("crossdevice/enabled", CrossDevice.isEnabled); }
 
@@ -1044,6 +1061,7 @@ private slots:
         // AAP metadata to re-fire).
         if (m_settings) {
             m_deviceInfo->saveToSettings(*m_settings);
+            restrictSettingsAccess();
         }
 
         // Log extracted metadata
@@ -1235,6 +1253,7 @@ private slots:
             m_deviceInfo->setMagicAccIRK(keys.magicAccIRK);
             m_deviceInfo->setMagicAccEncKey(keys.magicAccEncKey);
             m_deviceInfo->saveToSettings(*m_settings);
+            restrictSettingsAccess();
         }
         // Get CA state
         else if (data.startsWith(AirPodsPackets::ConversationalAwareness::HEADER)) {

@@ -7,6 +7,7 @@
 //   - setAutoStartEnabled(false) removes the file
 //   - the written desktop file contains the expected Exec --hide line
 //   - createAutoStartEntry's atomic-rename path leaves no <file>.tmp
+//   - a symlink planted at the old <file>.tmp path takes no write
 //
 // QStandardPaths::setTestModeEnabled(true) redirects ConfigLocation to
 // ~/.qttest so the test never touches the real user autostart dir.
@@ -15,6 +16,7 @@
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QFile>
+#include <QFileInfo>
 #include <QDir>
 #include <QCoreApplication>
 #include <QLoggingCategory>
@@ -126,6 +128,29 @@ private slots:
 
         QVERIFY(QFile::exists(m_path));
         QVERIFY(!QFile::exists(m_path + ".tmp"));
+    }
+
+    void aSymlinkAtTheTemporaryPathIsNotFollowed()
+    {
+        const QString bystander = QDir::tempPath() + "/openpods-autostart-bystander";
+        QFile::remove(bystander);
+        QFile keep(bystander);
+        QVERIFY(keep.open(QIODevice::WriteOnly | QIODevice::Text));
+        keep.write("UNTOUCHED\n");
+        keep.close();
+
+        QDir().mkpath(QFileInfo(m_path).absolutePath());
+        QVERIFY(QFile::link(bystander, m_path + ".tmp"));
+
+        AutoStartManager m;
+        m.setAutoStartEnabled(true);
+
+        QFile check(bystander);
+        QVERIFY(check.open(QIODevice::ReadOnly | QIODevice::Text));
+        QCOMPARE(check.readAll(), QByteArray("UNTOUCHED\n"));
+        check.close();
+        QVERIFY(!QFileInfo(m_path).isSymLink());
+        QFile::remove(bystander);
     }
 
     void reenableAfterDisable()
