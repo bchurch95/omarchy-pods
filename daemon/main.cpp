@@ -149,7 +149,10 @@ public:
                 {
                     // A disconnect inside these two seconds would otherwise start a chain for a device that left.
                     if (!areAirpodsConnected())
+                    {
+                        LOG_INFO("AirPods disconnected before the startup A2DP activation, skipping it");
                         return;
+                    }
 
                     QString formattedAddress = address.toString().replace(":", "_");
                     LOG_INFO("A2DP profile activation attempted for AirPods found on startup");

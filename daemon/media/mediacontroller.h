@@ -35,7 +35,6 @@ public:
   void followMediaChanges();
   bool isActiveOutputDeviceAirPods();
   void handleConversationalAwareness(const QByteArray &data);
-  bool activateA2dpProfile();
   void activateA2dpProfileWithRetry(const QString &macAddress);
   void cancelPendingA2dpActivation();
   void removeAudioOutputDevice();
@@ -59,6 +58,8 @@ private:
   MediaState mediaStateFromPlayerctlOutput(const QString &output) const;
   QString getAudioDeviceName();
   QStringList getPlayingMediaPlayers();
+  // Only the retry chain calls this, so the one-restart flag below cannot be read outside a chain.
+  bool activateA2dpProfile();
   void attemptA2dpActivation(const QString &macAddress, quint64 generation, int attempt);
 
   QStringList pausedByAppServices;
