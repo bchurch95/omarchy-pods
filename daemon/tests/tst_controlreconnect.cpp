@@ -41,7 +41,7 @@ private slots:
         QCOMPARE(session.state(), ControlReconnect::State::ConnectingSocket);
 
         QVERIFY(session.prepareRetry(3, false));
-        QCOMPARE(session.completedAttempts(), 1);
+        QCOMPARE(session.absentProbes(), 1);
         QCOMPARE(session.state(), ControlReconnect::State::Waiting);
 
         const auto secondProbe = session.beginProbe();
@@ -59,7 +59,7 @@ private slots:
         QVERIFY(session.prepareRetry(2, false));
         QVERIFY(session.prepareRetry(2, false));
         QVERIFY(!session.prepareRetry(2, false));
-        QCOMPARE(session.completedAttempts(), 2);
+        QCOMPARE(session.absentProbes(), 2);
         QVERIFY(!session.complete());
     }
 
@@ -83,7 +83,7 @@ private slots:
             QVERIFY(session.prepareRetry(3, true));
         }
         QVERIFY(!session.prepareRetry(3, true));
-        QCOMPARE(session.completedAttempts(), ControlReconnect::connectedAttemptLimit);
+        QCOMPARE(session.connectedAttempts(), ControlReconnect::connectedAttemptLimit);
     }
 
     void aLimitOfZeroRefusesEveryAbsentRetry()
@@ -91,7 +91,7 @@ private slots:
         ControlReconnect::Session session;
         session.begin(false);
         QVERIFY(!session.prepareRetry(0, false));
-        QCOMPARE(session.completedAttempts(), 0);
+        QCOMPARE(session.absentProbes(), 0);
     }
 
     void aRestartedSessionGetsBothBudgetsBack()
@@ -104,7 +104,8 @@ private slots:
 
         // begin() on a session that is still active must not inherit the spent budget.
         session.begin(false);
-        QCOMPARE(session.completedAttempts(), 0);
+        QCOMPARE(session.absentProbes(), 0);
+        QCOMPARE(session.connectedAttempts(), 0);
         QVERIFY(session.prepareRetry(1, false));
         QVERIFY(session.prepareRetry(1, true));
     }
@@ -118,7 +119,8 @@ private slots:
         QVERIFY(session.prepareRetry(2, true));
         QVERIFY(session.prepareRetry(2, false));
         QVERIFY(!session.prepareRetry(2, false));
-        QCOMPARE(session.completedAttempts(), 3);
+        QCOMPARE(session.absentProbes(), 2);
+        QCOMPARE(session.connectedAttempts(), 1);
     }
 
     void aCancelledSessionCannotBeRetried()

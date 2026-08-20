@@ -971,11 +971,12 @@ private slots:
     {
         if (m_controlRecovery.prepareRetry(m_retryAttempts, deviceStillConnected)) {
             const int jitter = static_cast<int>(QRandomGenerator::global()->bounded(ControlReconnect::jitterRangeMs));
-            const int delay = ControlReconnect::delayMs(m_controlRecovery.completedAttempts(), jitter);
             const int spent = deviceStillConnected ? m_controlRecovery.connectedAttempts()
                                                    : m_controlRecovery.absentProbes();
             const int limit = deviceStillConnected ? ControlReconnect::connectedAttemptLimit
                                                    : m_retryAttempts;
+            // Each branch backs off on its own count, so the one number in the line explains the delay beside it.
+            const int delay = ControlReconnect::delayMs(spent, jitter);
             LOG_INFO("Retrying AirPods control recovery after " << reason << " ("
                      << spent << "/" << limit << ", delay=" << delay << "ms)");
             m_controlReconnectTimer->start(delay);

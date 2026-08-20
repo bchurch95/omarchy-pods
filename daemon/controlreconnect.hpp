@@ -49,7 +49,6 @@ public:
 
     bool isActive() const { return m_state != State::Idle; }
     State state() const { return m_state; }
-    int completedAttempts() const { return m_absentProbes + m_connectedAttempts; }
     int absentProbes() const { return m_absentProbes; }
     int connectedAttempts() const { return m_connectedAttempts; }
 
