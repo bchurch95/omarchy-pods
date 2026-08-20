@@ -966,21 +966,30 @@ private slots:
         scheduleControlRecoveryRetry(QStringLiteral("BlueZ did not report the device as connected"), false);
     }
 
-    // deviceStillConnected exempts the retry from the attempt limit, because the endpoint is there and will accept.
+    // deviceStillConnected picks the longer ladder, because BlueZ saying it has the device means the endpoint is there.
     void scheduleControlRecoveryRetry(const QString &reason, bool deviceStillConnected)
     {
         if (m_controlRecovery.prepareRetry(m_retryAttempts, deviceStillConnected)) {
             const int jitter = static_cast<int>(QRandomGenerator::global()->bounded(ControlReconnect::jitterRangeMs));
-            const int attempt = m_controlRecovery.completedAttempts();
-            const int delay = ControlReconnect::delayMs(attempt, jitter);
-            LOG_INFO("Retrying AirPods control recovery after " << reason << " (attempt "
-                     << attempt << ", delay=" << delay << "ms)");
+            const int delay = ControlReconnect::delayMs(m_controlRecovery.completedAttempts(), jitter);
+            const int spent = deviceStillConnected ? m_controlRecovery.connectedAttempts()
+                                                   : m_controlRecovery.absentProbes();
+            const int limit = deviceStillConnected ? ControlReconnect::connectedAttemptLimit
+                                                   : m_retryAttempts;
+            LOG_INFO("Retrying AirPods control recovery after " << reason << " ("
+                     << spent << "/" << limit << ", delay=" << delay << "ms)");
             m_controlReconnectTimer->start(delay);
             return;
         }
 
         ++m_reconnectFailuresTotal;
-        LOG_INFO("AirPods stayed disconnected through control recovery, finalizing " << m_lastAirPodsAddress);
+        if (deviceStillConnected) {
+            LOG_WARN("AirPods never accepted the control socket while BlueZ held "
+                     << m_lastAirPodsAddress << ", finalizing");
+        } else {
+            LOG_INFO("AirPods stayed disconnected through control recovery, finalizing "
+                     << m_lastAirPodsAddress);
+        }
         finalizeDeviceDisconnected(m_lastAirPodsAddress);
     }
 

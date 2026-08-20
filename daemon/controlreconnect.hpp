@@ -13,7 +13,7 @@ enum class State
     ConnectingSocket
 };
 
-// Doubling from one second, capped at 16s because a device BlueZ still reports connected is retried forever.
+// Doubling from one second, capped at 16s so a long recovery polls rather than sleeps through the reconnect.
 inline constexpr int baseDelayMs = 1000;
 inline constexpr int maxDoublings = 5;
 inline constexpr int maxJitterMs = 499;
@@ -21,6 +21,9 @@ inline constexpr int jitterRangeMs = maxJitterMs + 1;
 
 // Short enough that a real profile rebuild is still in progress when the first probe runs.
 inline constexpr int firstDelayMs = 750;
+
+// Ten retries on the ladder above is roughly two minutes, longer than any profile rebuild measured here.
+inline constexpr int connectedAttemptLimit = 10;
 
 inline int delayMs(int attempt, int jitterMs)
 {
@@ -39,16 +42,16 @@ class Session
 public:
     void begin(bool bleScanWasActive)
     {
+        reset();
         m_state = State::Waiting;
-        m_completedAttempts = 0;
-        m_absentProbes = 0;
         m_restoreBleScan = bleScanWasActive;
-        ++m_generation;
     }
 
     bool isActive() const { return m_state != State::Idle; }
     State state() const { return m_state; }
-    int completedAttempts() const { return m_completedAttempts; }
+    int completedAttempts() const { return m_absentProbes + m_connectedAttempts; }
+    int absentProbes() const { return m_absentProbes; }
+    int connectedAttempts() const { return m_connectedAttempts; }
 
     std::uint64_t beginProbe()
     {
@@ -72,14 +75,18 @@ public:
         if (!isActive()) {
             return false;
         }
-        // A device BlueZ still reports connected accepts the socket eventually, so only its absence is counted out.
-        if (!deviceStillConnected) {
+        // A device BlueZ still reports connected is worth a longer ladder than one it says has gone.
+        if (deviceStillConnected) {
+            if (!hasAttemptRemaining(m_connectedAttempts, connectedAttemptLimit)) {
+                return false;
+            }
+            ++m_connectedAttempts;
+        } else {
             if (!hasAttemptRemaining(m_absentProbes, maximumAttempts)) {
                 return false;
             }
             ++m_absentProbes;
         }
-        ++m_completedAttempts;
         m_state = State::Waiting;
         ++m_generation;
         return true;
@@ -98,15 +105,15 @@ private:
     void reset()
     {
         m_state = State::Idle;
-        m_completedAttempts = 0;
         m_absentProbes = 0;
+        m_connectedAttempts = 0;
         m_restoreBleScan = false;
         ++m_generation;
     }
 
     State m_state = State::Idle;
-    int m_completedAttempts = 0;
     int m_absentProbes = 0;
+    int m_connectedAttempts = 0;
     bool m_restoreBleScan = false;
     std::uint64_t m_generation = 0;
 };

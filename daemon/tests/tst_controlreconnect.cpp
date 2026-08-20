@@ -63,15 +63,50 @@ private slots:
         QVERIFY(!session.complete());
     }
 
-    void keepsRetryingWhileBlueZReportsTheDeviceConnected()
+    void outlastsTheAbsentLimitWhileBlueZReportsTheDeviceConnected()
     {
         ControlReconnect::Session session;
         session.begin(false);
 
-        for (int i = 0; i < 20; ++i) {
+        for (int i = 0; i < ControlReconnect::connectedAttemptLimit; ++i) {
+            QVERIFY(session.prepareRetry(1, true));
+        }
+        QCOMPARE(session.connectedAttempts(), ControlReconnect::connectedAttemptLimit);
+    }
+
+    void stopsRetryingWhenTheDeviceNeverAcceptsTheSocket()
+    {
+        ControlReconnect::Session session;
+        session.begin(false);
+
+        for (int i = 0; i < ControlReconnect::connectedAttemptLimit; ++i) {
             QVERIFY(session.prepareRetry(3, true));
         }
-        QCOMPARE(session.completedAttempts(), 20);
+        QVERIFY(!session.prepareRetry(3, true));
+        QCOMPARE(session.completedAttempts(), ControlReconnect::connectedAttemptLimit);
+    }
+
+    void aLimitOfZeroRefusesEveryAbsentRetry()
+    {
+        ControlReconnect::Session session;
+        session.begin(false);
+        QVERIFY(!session.prepareRetry(0, false));
+        QCOMPARE(session.completedAttempts(), 0);
+    }
+
+    void aRestartedSessionGetsBothBudgetsBack()
+    {
+        ControlReconnect::Session session;
+        session.begin(false);
+        QVERIFY(session.prepareRetry(1, false));
+        QVERIFY(session.prepareRetry(1, true));
+        QVERIFY(!session.prepareRetry(1, false));
+
+        // begin() on a session that is still active must not inherit the spent budget.
+        session.begin(false);
+        QCOMPARE(session.completedAttempts(), 0);
+        QVERIFY(session.prepareRetry(1, false));
+        QVERIFY(session.prepareRetry(1, true));
     }
 
     void countsOnlyTheRetriesTakenWhileBlueZReportsTheDeviceGone()
