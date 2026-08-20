@@ -69,23 +69,10 @@ namespace AirpodsTrayApp
                 {"A3056", AirPodsModel::AirPods4ANC},
                 {"A3055", AirPodsModel::AirPods4ANC},
                 {"A3057", AirPodsModel::AirPods4ANC},
-                // AirPods Pro 3 (announced Sept 2025, USB-C only). Apple
-                // ships matched L/R buds + case under their own model
-                // identifiers; the daemon receives whichever one the
-                // primary pod reports in its AAP metadata. A3064
-                // verified from a real device 2026-05-21
-                // (`librepods-ctl status | jq .model_number`); the
-                // other entries are the surrounding range likely used
-                // for regional variants + L/R/case pairs. Add new
-                // variants here as they surface in `Model Number:`
-                // log lines.
+                // A3064 verified on a real device 2026-05-21; A3063 and A3065 are its published siblings.
                 {"A3063", AirPodsModel::AirPodsPro3},
                 {"A3064", AirPodsModel::AirPodsPro3},
-                {"A3065", AirPodsModel::AirPodsPro3},
-                {"A3066", AirPodsModel::AirPodsPro3},
-                {"A3334", AirPodsModel::AirPodsPro3},
-                {"A3335", AirPodsModel::AirPodsPro3},
-                {"A3336", AirPodsModel::AirPodsPro3}};
+                {"A3065", AirPodsModel::AirPodsPro3}};
 
             return modelNumberMap.value(modelNumber, AirPodsModel::Unknown);
         }
@@ -134,7 +121,8 @@ namespace AirpodsTrayApp
                 case AirPodsModel::AirPods2:               return QStringLiteral("AirPods (2nd generation)");
                 case AirPodsModel::AirPods3:               return QStringLiteral("AirPods (3rd generation)");
                 case AirPodsModel::AirPods4:               return QStringLiteral("AirPods 4");
-                case AirPodsModel::AirPods4ANC:            return QStringLiteral("AirPods 4 with ANC");
+                // Deliberately the same name as the plain AirPods 4: the panel says the family, and the capability keys say what it can do.
+                case AirPodsModel::AirPods4ANC:            return QStringLiteral("AirPods 4");
                 case AirPodsModel::AirPodsPro:             return QStringLiteral("AirPods Pro");
                 case AirPodsModel::AirPodsPro2Lightning:   return QStringLiteral("AirPods Pro 2");
                 case AirPodsModel::AirPodsPro2USBC:        return QStringLiteral("AirPods Pro 2 (USB-C)");
@@ -160,18 +148,68 @@ namespace AirpodsTrayApp
             }
         }
 
-        // AirPods Pro 3 dropped the Off listening mode: the AAP packet is accepted
-        // and silently ignored, measured three times against a real device with
-        // both pods in ear while Transparency applied immediately afterwards.
+        // Published for every model but only meaningful where supportsNoiseControl is true; the Pro 3 accepts the Off packet and ignores it.
         inline bool supportsNoiseOff(AirPodsModel model) {
             return model != AirPodsModel::AirPodsPro3;
         }
 
-        // True for the AirPods Pro family (any generation). Used by
-        // surfaces that gate Pro-only features — Conversation
-        // Awareness, One-Bud ANC, Adaptive Noise level — so the
-        // PodsMenu toggles can hide cleanly on AirPods 1/2/3/4 and the
-        // daemon's AAP no-ops can be skipped before the packet write.
+        // Listening modes at all: AirPods 1, 2, 3 and the plain AirPods 4 have none.
+        inline bool supportsNoiseControl(AirPodsModel model) {
+            switch (model) {
+                case AirPodsModel::AirPods4ANC:
+                case AirPodsModel::AirPodsPro:
+                case AirPodsModel::AirPodsPro2Lightning:
+                case AirPodsModel::AirPodsPro2USBC:
+                case AirPodsModel::AirPodsPro3:
+                case AirPodsModel::AirPodsMaxLightning:
+                case AirPodsModel::AirPodsMaxUSBC:
+                case AirPodsModel::AirPodsMax2:
+                // Fail open: a model this map has not learned yet keeps the modes it had before.
+                case AirPodsModel::Unknown:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        // Apple's own column set for Adaptive Audio and Conversation Awareness (apple.com/airpods/compare).
+        inline bool hasH2ListeningFeatures(AirPodsModel model) {
+            switch (model) {
+                case AirPodsModel::AirPods4ANC:
+                case AirPodsModel::AirPodsPro2Lightning:
+                case AirPodsModel::AirPodsPro2USBC:
+                case AirPodsModel::AirPodsPro3:
+                case AirPodsModel::AirPodsMax2:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        // Not the Pro-series flag: the H1 parts with noise control, Pro 1 and Max 1, lack it.
+        inline bool supportsAdaptiveAudio(AirPodsModel model) {
+            return hasH2ListeningFeatures(model);
+        }
+
+        inline bool supportsConversationalAwareness(AirPodsModel model) {
+            return hasH2ListeningFeatures(model);
+        }
+
+        // Apple's "Noise Cancellation with One AirPod", so it needs a second bud to keep in.
+        inline bool supportsOneBudANC(AirPodsModel model) {
+            switch (model) {
+                case AirPodsModel::AirPods4ANC:
+                case AirPodsModel::AirPodsPro:
+                case AirPodsModel::AirPodsPro2Lightning:
+                case AirPodsModel::AirPodsPro2USBC:
+                case AirPodsModel::AirPodsPro3:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        // Identity only since 2026-08-20: the Pro silhouette, and the flag older panels read.
         inline bool isProSeriesAirPods(AirPodsModel model) {
             switch (model) {
                 case AirPodsModel::AirPodsPro:

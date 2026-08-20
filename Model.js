@@ -49,6 +49,10 @@ function defaultStatus() {
     isProSeries: false,
     isHeadset: false,
     supportsNoiseOff: true,
+    supportsNoiseControl: true,
+    supportsAdaptive: false,
+    supportsConversationalAwareness: false,
+    supportsOneBudANC: false,
     noiseMode: NOISE_UNKNOWN,
     adaptiveNoiseLevel: 0,
     oneBudANC: false,
@@ -65,6 +69,11 @@ function defaultStatus() {
 function intOr(value, fallback) {
   var n = parseInt(value, 10)
   return isFinite(n) ? n : fallback
+}
+
+// A daemon older than the capability keys sends nothing, which is not the same as false.
+function boolOr(value, fallback) {
+  return value === undefined ? fallback : value === true
 }
 
 function podFrom(raw) {
@@ -91,7 +100,8 @@ function podFrom(raw) {
 //  "one_bud_anc_mode":true,"reconnect_attempts_total":0,"reconnect_failures_total":0,
 //  "reopen_calls_total":0,
 //  "right":{"available":true,"charging":true,"in_ear":false,"level":100},
-//  "schema_version":1,"supports_noise_off":false}
+//  "schema_version":1,"supports_adaptive":true,"supports_conversational_awareness":true,
+//  "supports_noise_control":true,"supports_noise_off":false,"supports_one_bud_anc":true}
 // A headset (AirPods Max) instead sends "is_headset":true and "headset":{"available":true,"charging":false,"level":100}, with no pods and no case.
 function parseStatus(raw) {
   var status = defaultStatus()
@@ -130,6 +140,11 @@ function parseStatus(raw) {
   status.isHeadset = parsed.is_headset === true
   // Older daemons do not send this, and every model before the Pro 3 had Off.
   status.supportsNoiseOff = parsed.supports_noise_off !== false
+  // A daemon without these keys falls back to what the panel used to gate on.
+  status.supportsNoiseControl = boolOr(parsed.supports_noise_control, true)
+  status.supportsAdaptive = boolOr(parsed.supports_adaptive, status.isProSeries)
+  status.supportsConversationalAwareness = boolOr(parsed.supports_conversational_awareness, status.isProSeries)
+  status.supportsOneBudANC = boolOr(parsed.supports_one_bud_anc, status.isProSeries)
   status.noiseMode = intOr(parsed.noise_mode, NOISE_UNKNOWN)
   status.adaptiveNoiseLevel = intOr(parsed.adaptive_noise_level, 0)
   status.oneBudANC = parsed.one_bud_anc_mode === true
@@ -143,6 +158,18 @@ function parseStatus(raw) {
   var headsetRaw = podFrom(parsed.headset)
   status.headset = { level: headsetRaw.level, charging: headsetRaw.charging }
   return status
+}
+
+// The one list both the cycle and the panel rows are built from, in the order the panel draws them.
+function availableModes(hasNoiseControl, hasOff, hasAdaptive) {
+  // AirPods 1, 2, 3 and the plain AirPods 4 have no listening modes at all.
+  if (!hasNoiseControl) return []
+  var modes = []
+  if (hasOff) modes.push(NOISE_OFF)
+  modes.push(NOISE_TRANSPARENCY)
+  if (hasAdaptive) modes.push(NOISE_ADAPTIVE)
+  modes.push(NOISE_ANC)
+  return modes
 }
 
 function noiseModeName(mode) {

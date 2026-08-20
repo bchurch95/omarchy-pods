@@ -67,7 +67,13 @@ private slots:
         QCOMPARE(parseModelNumber("A3053"), AirPodsModel::AirPods4);
         QCOMPARE(parseModelNumber("A3056"), AirPodsModel::AirPods4ANC);
         QCOMPARE(parseModelNumber("A3064"), AirPodsModel::AirPodsPro3);
-        QCOMPARE(parseModelNumber("A3334"), AirPodsModel::AirPodsPro3);
+        QCOMPARE(parseModelNumber("A3063"), AirPodsModel::AirPodsPro3);
+        QCOMPARE(parseModelNumber("A3065"), AirPodsModel::AirPodsPro3);
+        // Apple publishes none of these four, so the dropped guesses must not answer Pro 3.
+        QCOMPARE(parseModelNumber("A3066"), AirPodsModel::Unknown);
+        QCOMPARE(parseModelNumber("A3334"), AirPodsModel::Unknown);
+        QCOMPARE(parseModelNumber("A3335"), AirPodsModel::Unknown);
+        QCOMPARE(parseModelNumber("A3336"), AirPodsModel::Unknown);
         QCOMPARE(parseModelNumber("ZZZZZ"), AirPodsModel::Unknown);
         QCOMPARE(parseModelNumber(""),      AirPodsModel::Unknown);
     }
@@ -116,8 +122,11 @@ private slots:
         }
         // Unknown must stay empty so consumers can skip-render.
         QCOMPARE(modelDisplayName(AirPodsModel::Unknown), QString());
-        // The loop above only asks for a non-empty AirPods-prefixed string, so pin the published name too.
+        // The loop above only asks for a non-empty AirPods-prefixed string, so pin the published names too.
         QCOMPARE(modelDisplayName(AirPodsModel::AirPodsMax2), QStringLiteral("AirPods Max 2"));
+        // Both AirPods 4 variants say AirPods 4 on purpose, so a reviewer cannot read the match as a slip.
+        QCOMPARE(modelDisplayName(AirPodsModel::AirPods4), QStringLiteral("AirPods 4"));
+        QCOMPARE(modelDisplayName(AirPodsModel::AirPods4ANC), QStringLiteral("AirPods 4"));
     }
 
     // model_int is persisted and published, so any renumbering here is a break, not a refactor.
@@ -150,12 +159,7 @@ private slots:
         QVERIFY(!isModelHeadset(AirPodsModel::Unknown));
     }
 
-    // Gates the Pro-only features (Conversation Awareness, One-Bud
-    // ANC, Adaptive Noise level slider). Must include every Pro
-    // generation including future ones the contributor adds via
-    // parseModelNumber — this test catches the latter case by
-    // failing if a new AirPodsPro4 / AirPodsPro2-some-variant lands
-    // in the enum without updating isProSeriesAirPods.
+    // Identity only since 2026-08-20, but a new Pro generation must still land here.
     void isProSeriesAirPods_coversAllProGens()
     {
         QVERIFY(isProSeriesAirPods(AirPodsModel::AirPodsPro));
@@ -171,6 +175,57 @@ private slots:
         QVERIFY(!isProSeriesAirPods(AirPodsModel::AirPodsMaxUSBC));
         QVERIFY(!isProSeriesAirPods(AirPodsModel::AirPodsMax2));
         QVERIFY(!isProSeriesAirPods(AirPodsModel::Unknown));
+    }
+
+    // The lineup as apple.com/airpods/compare listed it on 2026-08-20, one row per model.
+    void capabilities_matchAppleCompareTable_data()
+    {
+        QTest::addColumn<int>("model");
+        QTest::addColumn<bool>("noiseControl");
+        QTest::addColumn<bool>("adaptive");
+        QTest::addColumn<bool>("conversationalAwareness");
+        QTest::addColumn<bool>("oneBudANC");
+
+        QTest::newRow("AirPods1")        << int(AirPodsModel::AirPods1)             << false << false << false << false;
+        QTest::newRow("AirPods2")        << int(AirPodsModel::AirPods2)             << false << false << false << false;
+        QTest::newRow("AirPods3")        << int(AirPodsModel::AirPods3)             << false << false << false << false;
+        QTest::newRow("AirPods4")        << int(AirPodsModel::AirPods4)             << false << false << false << false;
+        QTest::newRow("AirPods4ANC")     << int(AirPodsModel::AirPods4ANC)          << true  << true  << true  << true;
+        QTest::newRow("AirPodsPro")      << int(AirPodsModel::AirPodsPro)           << true  << false << false << true;
+        QTest::newRow("AirPodsPro2L")    << int(AirPodsModel::AirPodsPro2Lightning) << true  << true  << true  << true;
+        QTest::newRow("AirPodsPro2USBC") << int(AirPodsModel::AirPodsPro2USBC)      << true  << true  << true  << true;
+        QTest::newRow("AirPodsPro3")     << int(AirPodsModel::AirPodsPro3)          << true  << true  << true  << true;
+        QTest::newRow("AirPodsMaxL")     << int(AirPodsModel::AirPodsMaxLightning)  << true  << false << false << false;
+        QTest::newRow("AirPodsMaxUSBC")  << int(AirPodsModel::AirPodsMaxUSBC)       << true  << false << false << false;
+        QTest::newRow("AirPodsMax2")     << int(AirPodsModel::AirPodsMax2)          << true  << true  << true  << false;
+        // Unknown fails open on modes so an unmapped model keeps what it had, and gains nothing else.
+        QTest::newRow("Unknown")         << int(AirPodsModel::Unknown)              << true  << false << false << false;
+    }
+
+    void capabilities_matchAppleCompareTable()
+    {
+        QFETCH(int, model);
+        QFETCH(bool, noiseControl);
+        QFETCH(bool, adaptive);
+        QFETCH(bool, conversationalAwareness);
+        QFETCH(bool, oneBudANC);
+
+        const auto m = static_cast<AirPodsModel>(model);
+        QCOMPARE(supportsNoiseControl(m), noiseControl);
+        QCOMPARE(supportsAdaptiveAudio(m), adaptive);
+        QCOMPARE(supportsConversationalAwareness(m), conversationalAwareness);
+        QCOMPARE(supportsOneBudANC(m), oneBudANC);
+    }
+
+    // No listening feature can exist on a device with no listening modes.
+    void capabilities_neverExceedNoiseControl()
+    {
+        for (int i = 0; i <= int(AirPodsModel::AirPodsMax2); ++i) {
+            const auto m = static_cast<AirPodsModel>(i);
+            if (supportsNoiseControl(m)) continue;
+            QVERIFY2(!supportsAdaptiveAudio(m) && !supportsConversationalAwareness(m) && !supportsOneBudANC(m),
+                     qPrintable(QStringLiteral("model %1 has a listening feature without listening modes").arg(i)));
+        }
     }
 
 private:

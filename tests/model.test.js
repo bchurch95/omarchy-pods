@@ -3,7 +3,7 @@
 
 const source = Deno.readTextFileSync(new URL("../Model.js", import.meta.url))
 const Model = new Function(
-  source + "; return { parseStatus, podFrom, defaultPod, noiseModeVerb, earDetectionVerb, levelFraction, levelText, podMeta, elideError, LEVEL_UNKNOWN, NOISE_UNKNOWN, EAR_PAUSE_ONE_OUT, LID_UNKNOWN, MAX_ERROR_CHARS }"
+  source + "; return { parseStatus, podFrom, defaultPod, noiseModeVerb, earDetectionVerb, levelFraction, levelText, podMeta, elideError, availableModes, NOISE_OFF, NOISE_ANC, NOISE_TRANSPARENCY, NOISE_ADAPTIVE, LEVEL_UNKNOWN, NOISE_UNKNOWN, EAR_PAUSE_ONE_OUT, LID_UNKNOWN, MAX_ERROR_CHARS }"
 )()
 
 let failures = 0
@@ -97,6 +97,45 @@ check("max before any battery packet has no level", maxFresh.headset.level, Mode
 // A daemon too old to send is_headset must keep drawing the pod rows rather than an empty headset row.
 check("no is_headset key means earbuds", good.isHeadset, false)
 check("no headset key is unknown, not zero", good.headset.level, Model.LEVEL_UNKNOWN)
+
+// The capability keys, which are what stops the panel offering a control the hardware ignores.
+const ap4 = Model.parseStatus('{"connected":true,"is_headset":false,"is_pro_series":false,"model_name":"AirPods 4","noise_mode":-1,"schema_version":1,"supports_adaptive":false,"supports_conversational_awareness":false,"supports_noise_control":false,"supports_noise_off":true,"supports_one_bud_anc":false}')
+check("plain AirPods 4 has no listening modes", ap4.supportsNoiseControl, false)
+check("plain AirPods 4 has no adaptive", ap4.supportsAdaptive, false)
+
+const ap4anc = Model.parseStatus('{"connected":true,"is_headset":false,"is_pro_series":false,"model_name":"AirPods 4","noise_mode":1,"schema_version":1,"supports_adaptive":true,"supports_conversational_awareness":true,"supports_noise_control":true,"supports_noise_off":true,"supports_one_bud_anc":true}')
+check("AirPods 4 with ANC hardware gets adaptive despite not being Pro", ap4anc.supportsAdaptive, true)
+check("AirPods 4 with ANC hardware gets conversation awareness", ap4anc.supportsConversationalAwareness, true)
+check("AirPods 4 with ANC hardware gets one-bud ANC", ap4anc.supportsOneBudANC, true)
+
+const max2 = Model.parseStatus('{"connected":true,"is_headset":true,"is_pro_series":false,"model_name":"AirPods Max 2","noise_mode":1,"schema_version":1,"supports_adaptive":true,"supports_conversational_awareness":true,"supports_noise_control":true,"supports_noise_off":true,"supports_one_bud_anc":false}')
+check("Max 2 has adaptive", max2.supportsAdaptive, true)
+check("Max 2 has no second bud to keep ANC on", max2.supportsOneBudANC, false)
+
+// A daemon older than the capability keys falls back to the Pro flag, which is what it used to gate on.
+check("older daemon, Pro device, keeps adaptive", good.supportsAdaptive, true)
+check("older daemon, Pro device, keeps one-bud ANC", good.supportsOneBudANC, true)
+check("older daemon assumes listening modes exist", good.supportsNoiseControl, true)
+const oldPlain = Model.parseStatus('{"connected":true,"is_pro_series":false,"noise_mode":1,"schema_version":1}')
+check("older daemon, non-Pro device, hides adaptive", oldPlain.supportsAdaptive, false)
+check("a false capability key is not treated as absent", ap4.supportsNoiseControl, false)
+
+// An AirPods Pro 1 is the case the capability keys exist for: Pro, and no Adaptive.
+const pro1 = Model.parseStatus('{"connected":true,"is_headset":false,"is_pro_series":true,"model_name":"AirPods Pro","noise_mode":1,"schema_version":1,"supports_adaptive":false,"supports_conversational_awareness":false,"supports_noise_control":true,"supports_noise_off":true,"supports_one_bud_anc":true}')
+check("a Pro with an explicit false keeps the key, not the Pro flag", pro1.supportsAdaptive, false)
+check("the same Pro still gets conversation awareness taken away", pro1.supportsConversationalAwareness, false)
+
+// Three booleans rather than a status object, the shape Service.qml calls it with.
+function modesFor(status) {
+  return Model.availableModes(status.supportsNoiseControl, status.supportsNoiseOff, status.supportsAdaptive)
+}
+check("no listening modes at all on a plain AirPods 4", modesFor(ap4), [])
+check("a Pro 1 gets Off, Transparency and ANC but no Adaptive", modesFor(pro1),
+  [Model.NOISE_OFF, Model.NOISE_TRANSPARENCY, Model.NOISE_ANC])
+check("a Pro 3 loses Off and keeps Adaptive", modesFor(good),
+  [Model.NOISE_TRANSPARENCY, Model.NOISE_ADAPTIVE, Model.NOISE_ANC])
+check("a Max 2 gets all four", modesFor(max2),
+  [Model.NOISE_OFF, Model.NOISE_TRANSPARENCY, Model.NOISE_ADAPTIVE, Model.NOISE_ANC])
 
 if (failures > 0) {
   console.log(failures + " failed")

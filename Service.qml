@@ -15,6 +15,10 @@ Item {
   property bool isProSeries: false
   property bool isHeadset: false
   property bool supportsNoiseOff: true
+  property bool supportsNoiseControl: true
+  property bool supportsAdaptive: false
+  property bool supportsConversationalAwareness: false
+  property bool supportsOneBudANC: false
   property int noiseMode: Model.NOISE_UNKNOWN
   property int adaptiveNoiseLevel: 0
   property bool oneBudANC: false
@@ -96,6 +100,10 @@ Item {
     isProSeries = status.isProSeries
     isHeadset = status.isHeadset
     supportsNoiseOff = status.supportsNoiseOff
+    supportsNoiseControl = status.supportsNoiseControl
+    supportsAdaptive = status.supportsAdaptive
+    supportsConversationalAwareness = status.supportsConversationalAwareness
+    supportsOneBudANC = status.supportsOneBudANC
     leftPod = status.left
     rightPod = status.right
     caseBattery = status.caseBattery
@@ -142,23 +150,20 @@ Item {
     commandProcess.running = true
   }
 
+  // Guards the keyboard and the bar's right click too, not just the panel rows.
   function setNoiseMode(mode) {
+    if (availableModes().indexOf(mode) < 0) return
     _send(Model.noiseModeVerb(mode), "noiseMode", mode)
   }
 
-  // The one list both the cycle and the panel rows are built from.
   function availableModes() {
-    var modes = []
-    if (supportsNoiseOff) modes.push(Model.NOISE_OFF)
-    modes.push(Model.NOISE_TRANSPARENCY)
-    if (isProSeries) modes.push(Model.NOISE_ADAPTIVE)
-    modes.push(Model.NOISE_ANC)
-    return modes
+    return Model.availableModes(supportsNoiseControl, supportsNoiseOff, supportsAdaptive)
   }
 
   function cycleNoiseMode() {
     if (!hasAirPods) return
     var modes = availableModes()
+    if (modes.length === 0) return
     var at = modes.indexOf(noiseMode)
     // An unknown current mode has no next one, so start at the head instead of past it.
     setNoiseMode(at < 0 ? modes[0] : modes[(at + 1) % modes.length])
