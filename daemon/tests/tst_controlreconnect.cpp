@@ -17,7 +17,7 @@ private slots:
     void boundsInputs()
     {
         QCOMPARE(ControlReconnect::delayMs(0, -1), 1000);
-        QCOMPARE(ControlReconnect::delayMs(20, 999), 512499);
+        QCOMPARE(ControlReconnect::delayMs(20, 999), 16499);
     }
 
     void stopsAtConfiguredLimit()
@@ -40,7 +40,7 @@ private slots:
         QVERIFY(!session.acceptsProbe(firstProbe));
         QCOMPARE(session.state(), ControlReconnect::State::ConnectingSocket);
 
-        QVERIFY(session.prepareRetry(3));
+        QVERIFY(session.prepareRetry(3, false));
         QCOMPARE(session.completedAttempts(), 1);
         QCOMPARE(session.state(), ControlReconnect::State::Waiting);
 
@@ -56,11 +56,34 @@ private slots:
     {
         ControlReconnect::Session session;
         session.begin(false);
-        QVERIFY(session.prepareRetry(2));
-        QVERIFY(session.prepareRetry(2));
-        QVERIFY(!session.prepareRetry(2));
+        QVERIFY(session.prepareRetry(2, false));
+        QVERIFY(session.prepareRetry(2, false));
+        QVERIFY(!session.prepareRetry(2, false));
         QCOMPARE(session.completedAttempts(), 2);
         QVERIFY(!session.complete());
+    }
+
+    void keepsRetryingWhileBlueZReportsTheDeviceConnected()
+    {
+        ControlReconnect::Session session;
+        session.begin(false);
+
+        for (int i = 0; i < 20; ++i) {
+            QVERIFY(session.prepareRetry(3, true));
+        }
+        QCOMPARE(session.completedAttempts(), 20);
+    }
+
+    void countsOnlyTheRetriesTakenWhileBlueZReportsTheDeviceGone()
+    {
+        ControlReconnect::Session session;
+        session.begin(false);
+
+        QVERIFY(session.prepareRetry(2, false));
+        QVERIFY(session.prepareRetry(2, true));
+        QVERIFY(session.prepareRetry(2, false));
+        QVERIFY(!session.prepareRetry(2, false));
+        QCOMPARE(session.completedAttempts(), 3);
     }
 
     void aCancelledSessionCannotBeRetried()
@@ -73,7 +96,7 @@ private slots:
         QCOMPARE(session.state(), ControlReconnect::State::Idle);
         QVERIFY(!session.isActive());
         QVERIFY(!session.acceptsProbe(probe));
-        QVERIFY(!session.prepareRetry(3));
+        QVERIFY(!session.prepareRetry(3, false));
         QVERIFY(!session.complete());
     }
 

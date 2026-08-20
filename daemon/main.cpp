@@ -919,7 +919,7 @@ private slots:
             LOG_INFO("Scheduling AirPods control reconnect after " << reason);
             m_controlReconnectTimer->start(ControlReconnect::firstDelayMs);
         } else if (m_controlRecovery.state() == ControlReconnect::State::ConnectingSocket) {
-            scheduleControlRecoveryRetry(reason);
+            scheduleControlRecoveryRetry(reason, false);
         }
     }
 
@@ -963,23 +963,24 @@ private slots:
             return;
         }
 
-        scheduleControlRecoveryRetry(QStringLiteral("BlueZ did not report the device as connected"));
+        scheduleControlRecoveryRetry(QStringLiteral("BlueZ did not report the device as connected"), false);
     }
 
-    void scheduleControlRecoveryRetry(const QString &reason)
+    // deviceStillConnected exempts the retry from the attempt limit, because the endpoint is there and will accept.
+    void scheduleControlRecoveryRetry(const QString &reason, bool deviceStillConnected)
     {
-        if (m_controlRecovery.prepareRetry(m_retryAttempts)) {
+        if (m_controlRecovery.prepareRetry(m_retryAttempts, deviceStillConnected)) {
             const int jitter = static_cast<int>(QRandomGenerator::global()->bounded(ControlReconnect::jitterRangeMs));
             const int attempt = m_controlRecovery.completedAttempts();
             const int delay = ControlReconnect::delayMs(attempt, jitter);
-            LOG_INFO("Retrying AirPods control recovery after " << reason << " ("
-                     << attempt << "/" << m_retryAttempts << ", delay=" << delay << "ms)");
+            LOG_INFO("Retrying AirPods control recovery after " << reason << " (attempt "
+                     << attempt << ", delay=" << delay << "ms)");
             m_controlReconnectTimer->start(delay);
             return;
         }
 
         ++m_reconnectFailuresTotal;
-        LOG_INFO("AirPods control recovery exhausted for " << m_lastAirPodsAddress);
+        LOG_INFO("AirPods stayed disconnected through control recovery, finalizing " << m_lastAirPodsAddress);
         finalizeDeviceDisconnected(m_lastAirPodsAddress);
     }
 
@@ -1162,6 +1163,9 @@ private slots:
                 LOG_ERROR("Failed to connect after " << m_retryAttempts
                           << " attempts (total failures=" << m_reconnectFailuresTotal << ")");
                 m_retryCount = 0;
+                // BlueZ never raises Connected again for a device it already holds, so hand over to the probe ladder.
+                scheduleControlReconnect(device.address().toString(), device.name(),
+                                         QStringLiteral("initial connect attempts exhausted"));
             }
         };
 
@@ -1201,7 +1205,7 @@ private slots:
         failedSocket->deleteLater();
         socket = nullptr;
         rememberAirPodsDevice(device.address().toString(), device.name());
-        scheduleControlRecoveryRetry(reason);
+        scheduleControlRecoveryRetry(reason, true);
     }
 
     void handleControlSocketLoss(const QBluetoothDeviceInfo &device,

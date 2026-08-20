@@ -13,9 +13,9 @@ enum class State
     ConnectingSocket
 };
 
-// Doubling from one second, capped so a long-lived session cannot overflow the shift.
+// Doubling from one second, capped at 16s because a device BlueZ still reports connected is retried forever.
 inline constexpr int baseDelayMs = 1000;
-inline constexpr int maxDoublings = 10;
+inline constexpr int maxDoublings = 5;
 inline constexpr int maxJitterMs = 499;
 inline constexpr int jitterRangeMs = maxJitterMs + 1;
 
@@ -41,6 +41,7 @@ public:
     {
         m_state = State::Waiting;
         m_completedAttempts = 0;
+        m_absentProbes = 0;
         m_restoreBleScan = bleScanWasActive;
         ++m_generation;
     }
@@ -66,10 +67,17 @@ public:
         ++m_generation;
     }
 
-    bool prepareRetry(int maximumAttempts)
+    bool prepareRetry(int maximumAttempts, bool deviceStillConnected)
     {
-        if (!isActive() || !hasAttemptRemaining(m_completedAttempts, maximumAttempts)) {
+        if (!isActive()) {
             return false;
+        }
+        // A device BlueZ still reports connected accepts the socket eventually, so only its absence is counted out.
+        if (!deviceStillConnected) {
+            if (!hasAttemptRemaining(m_absentProbes, maximumAttempts)) {
+                return false;
+            }
+            ++m_absentProbes;
         }
         ++m_completedAttempts;
         m_state = State::Waiting;
@@ -91,12 +99,14 @@ private:
     {
         m_state = State::Idle;
         m_completedAttempts = 0;
+        m_absentProbes = 0;
         m_restoreBleScan = false;
         ++m_generation;
     }
 
     State m_state = State::Idle;
     int m_completedAttempts = 0;
+    int m_absentProbes = 0;
     bool m_restoreBleScan = false;
     std::uint64_t m_generation = 0;
 };
