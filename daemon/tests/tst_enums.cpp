@@ -38,6 +38,7 @@ private slots:
         QTest::newRow("AirPodsPro2USBC")   << int(AirPodsModel::AirPodsPro2USBC);
         QTest::newRow("AirPodsMaxL")       << int(AirPodsModel::AirPodsMaxLightning);
         QTest::newRow("AirPodsMaxUSBC")    << int(AirPodsModel::AirPodsMaxUSBC);
+        QTest::newRow("AirPodsMax2")       << int(AirPodsModel::AirPodsMax2);
         QTest::newRow("Unknown")           << int(AirPodsModel::Unknown);
     }
 
@@ -59,6 +60,7 @@ private slots:
         QCOMPARE(parseModelNumber("A2032"), AirPodsModel::AirPods2);
         QCOMPARE(parseModelNumber("A2096"), AirPodsModel::AirPodsMaxLightning);
         QCOMPARE(parseModelNumber("A3184"), AirPodsModel::AirPodsMaxUSBC);
+        QCOMPARE(parseModelNumber("A3454"), AirPodsModel::AirPodsMax2);
         QCOMPARE(parseModelNumber("A2565"), AirPodsModel::AirPods3);
         QCOMPARE(parseModelNumber("A3047"), AirPodsModel::AirPodsPro2USBC);
         QCOMPARE(parseModelNumber("A2931"), AirPodsModel::AirPodsPro2Lightning);
@@ -98,6 +100,7 @@ private slots:
             AirPodsModel::AirPodsPro3,
             AirPodsModel::AirPodsMaxLightning,
             AirPodsModel::AirPodsMaxUSBC,
+            AirPodsModel::AirPodsMax2,
         };
         for (const auto m : known) {
             const QString name = modelDisplayName(m);
@@ -119,6 +122,7 @@ private slots:
     {
         QVERIFY(isModelHeadset(AirPodsModel::AirPodsMaxLightning));
         QVERIFY(isModelHeadset(AirPodsModel::AirPodsMaxUSBC));
+        QVERIFY(isModelHeadset(AirPodsModel::AirPodsMax2));
         QVERIFY(!isModelHeadset(AirPodsModel::AirPods1));
         QVERIFY(!isModelHeadset(AirPodsModel::AirPodsPro));
         QVERIFY(!isModelHeadset(AirPodsModel::AirPodsPro2USBC));
@@ -145,6 +149,7 @@ private slots:
         QVERIFY(!isProSeriesAirPods(AirPodsModel::AirPods4ANC));
         QVERIFY(!isProSeriesAirPods(AirPodsModel::AirPodsMaxLightning));
         QVERIFY(!isProSeriesAirPods(AirPodsModel::AirPodsMaxUSBC));
+        QVERIFY(!isProSeriesAirPods(AirPodsModel::AirPodsMax2));
         QVERIFY(!isProSeriesAirPods(AirPodsModel::Unknown));
     }
 

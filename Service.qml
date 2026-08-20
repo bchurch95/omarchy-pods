@@ -25,7 +25,15 @@ Item {
   property var leftPod: Model.defaultPod()
   property var rightPod: Model.defaultPod()
   property var caseBattery: ({ level: Model.LEVEL_UNKNOWN, charging: false })
-  property var headsetBattery: ({ level: Model.LEVEL_UNKNOWN, charging: false })
+  property var headsetBattery: ({ level: Model.LEVEL_UNKNOWN, charging: false, inEar: false })
+  // Primitive copies of the levels. QML does not reliably re-evaluate
+  // bindings that reach into a `property var` object, so hasBattery must
+  // not depend on headsetBattery.level or the Max row stays hidden.
+  property int leftLevel: Model.LEVEL_UNKNOWN
+  property int rightLevel: Model.LEVEL_UNKNOWN
+  property int caseLevel: Model.LEVEL_UNKNOWN
+  property int headsetLevel: Model.LEVEL_UNKNOWN
+  property bool headsetCharging: false
   property string lastError: ""
   property string actionStatus: ""
 
@@ -38,10 +46,10 @@ Item {
   // Battery keeps arriving over BLE while the audio link is down, so it is not gated on connected.
   readonly property bool hasBattery: daemonReachable
     && (isHeadset
-      ? headsetBattery.level !== Model.LEVEL_UNKNOWN
-      : (leftPod.level !== Model.LEVEL_UNKNOWN
-        || rightPod.level !== Model.LEVEL_UNKNOWN
-        || caseBattery.level !== Model.LEVEL_UNKNOWN))
+      ? headsetLevel !== Model.LEVEL_UNKNOWN
+      : (leftLevel !== Model.LEVEL_UNKNOWN
+        || rightLevel !== Model.LEVEL_UNKNOWN
+        || caseLevel !== Model.LEVEL_UNKNOWN))
 
   // How long an optimistic value is held before the daemon's own state wins.
   readonly property int settleHoldMs: 4000
@@ -94,12 +102,23 @@ Item {
     deviceName = status.deviceName
     modelName = status.modelName
     isProSeries = status.isProSeries
-    isHeadset = status.isHeadset
     supportsNoiseOff = status.supportsNoiseOff
     leftPod = status.left
     rightPod = status.right
     caseBattery = status.caseBattery
-    headsetBattery = status.headset
+    leftLevel = status.left.level
+    rightLevel = status.right.level
+    caseLevel = status.caseBattery.level
+    headsetLevel = status.headset.level
+    headsetCharging = status.headset.charging === true
+    headsetBattery = {
+      level: status.headset.level,
+      charging: status.headset.charging === true,
+      inEar: false
+    }
+    // Flip the layout after the levels land, so hasBattery never observes
+    // isHeadset=true against a still-unknown headsetLevel.
+    isHeadset = status.isHeadset
     lidState = status.lidState
 
     noiseMode = _settle("noiseMode", status.noiseMode)

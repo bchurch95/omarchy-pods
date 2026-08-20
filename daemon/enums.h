@@ -34,7 +34,8 @@ namespace AirpodsTrayApp
             AirPodsMaxUSBC,
             AirPods4,
             AirPods4ANC,
-            AirPodsPro3
+            AirPodsPro3,
+            AirPodsMax2
         };
         Q_ENUM_NS(AirPodsModel)
 
@@ -51,6 +52,7 @@ namespace AirpodsTrayApp
                 {"A2083", AirPodsModel::AirPodsPro},
                 {"A2096", AirPodsModel::AirPodsMaxLightning},
                 {"A3184", AirPodsModel::AirPodsMaxUSBC},
+                {"A3454", AirPodsModel::AirPodsMax2},
                 {"A2565", AirPodsModel::AirPods3},
                 {"A2564", AirPodsModel::AirPods3},
                 {"A3047", AirPodsModel::AirPodsPro2USBC},
@@ -106,6 +108,7 @@ namespace AirpodsTrayApp
                     return {"podpro.png", "podpro_case.png"};
                 case AirPodsModel::AirPodsMaxLightning:
                 case AirPodsModel::AirPodsMaxUSBC:
+                case AirPodsModel::AirPodsMax2:
                     // AirPods Max has no physical charging case; the
                     // battery.hpp side never marks caseAvailable=true
                     // for headsets, so this slot is normally unused.
@@ -135,6 +138,7 @@ namespace AirpodsTrayApp
                 case AirPodsModel::AirPodsPro2USBC:        return QStringLiteral("AirPods Pro 2 (USB-C)");
                 case AirPodsModel::AirPodsMaxLightning:    return QStringLiteral("AirPods Max");
                 case AirPodsModel::AirPodsMaxUSBC:         return QStringLiteral("AirPods Max (USB-C)");
+                case AirPodsModel::AirPodsMax2:            return QStringLiteral("AirPods Max 2");
                 case AirPodsModel::AirPodsPro3:            return QStringLiteral("AirPods Pro 3");
                 case AirPodsModel::Unknown:                return QString();
             }
@@ -147,6 +151,7 @@ namespace AirpodsTrayApp
             switch (model) {
                 case AirPodsModel::AirPodsMaxLightning:
                 case AirPodsModel::AirPodsMaxUSBC:
+                case AirPodsModel::AirPodsMax2:
                     return true;
                 default:
                     return false;
