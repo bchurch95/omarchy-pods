@@ -214,5 +214,6 @@ commit it was forked from, are recorded in
 The three product outlines in `AirPodsIcon.qml` are Apple's, taken from the
 chapter navigation on [apple.com/airpods](https://www.apple.com/airpods/) so the
 bar shows the hardware you actually own. AirPods, AirPods Pro and AirPods Max are
-trademarks of Apple Inc., which does not sponsor or endorse this plugin, and the
-outlines are not covered by the MIT grant above. Ask before reusing them.
+trademarks of Apple Inc., which does not sponsor or endorse this plugin. Those
+outlines are not this project's to license, so the MIT grant above does not reach
+them and nothing here gives you permission to reuse them.

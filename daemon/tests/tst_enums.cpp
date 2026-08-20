@@ -124,8 +124,9 @@ private slots:
         QCOMPARE(modelDisplayName(AirPodsModel::Unknown), QString());
         // The loop above only asks for a non-empty AirPods-prefixed string, so pin the published names too.
         QCOMPARE(modelDisplayName(AirPodsModel::AirPodsMax2), QStringLiteral("AirPods Max 2"));
-        // Two capability sets cannot share one model_name, which is what the panel titles with.
-        QVERIFY(modelDisplayName(AirPodsModel::AirPods4) != modelDisplayName(AirPodsModel::AirPods4ANC));
+        // Both AirPods 4 variants say AirPods 4 on purpose, so a reviewer cannot read the match as a slip.
+        QCOMPARE(modelDisplayName(AirPodsModel::AirPods4), QStringLiteral("AirPods 4"));
+        QCOMPARE(modelDisplayName(AirPodsModel::AirPods4ANC), QStringLiteral("AirPods 4"));
     }
 
     // model_int is persisted and published, so any renumbering here is a break, not a refactor.

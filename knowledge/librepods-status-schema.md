@@ -43,8 +43,8 @@ does not use it, and runs `librepods-ctl` only for the control verbs below.
 | `adaptive_noise_level` | int | 0-100, only meaningful while `noise_mode` is 3 |
 | `one_bud_anc_mode` | bool | Pro only |
 | `model_name` | string | marketing name, empty until the device is identified |
-| `is_pro_series` | bool | the Pro silhouette in the bar, and the panel's fallback when the four keys below are absent |
-| `supports_noise_control` | bool | false on AirPods 1, 2, 3 and the plain 4, which have no modes at all |
+| `is_pro_series` | bool | the Pro silhouette in the bar, and the panel's fallback for `supports_adaptive`, `supports_conversational_awareness` and `supports_one_bud_anc` when those are absent |
+| `supports_noise_control` | bool | false on AirPods 1, 2, 3 and the plain 4, which have no modes at all; absent reads as true, not as `is_pro_series` |
 | `supports_adaptive` | bool | H2 parts with ANC: AirPods 4 (ANC), Pro 2, Pro 3, Max 2 |
 | `supports_conversational_awareness` | bool | same four |
 | `supports_one_bud_anc` | bool | noise control and a second bud, so never on a Max |
@@ -76,7 +76,11 @@ any older daemon, which is the worse trade.
 
 Not everything here was additive. Four AirPods Pro 3 codes that Apple never
 published, `A3066` and `A3334` through `A3336`, were dropped the same day, so a
-device reporting one of them now reads `Unknown` rather than Pro 3.
+device reporting one of them now reads `Unknown` rather than Pro 3. `model_name`
+for the noise-cancelling AirPods 4 also changed, from `AirPods 4 with ANC` to
+`AirPods 4`, because the panel names the family and the capability keys say what
+it can do. Apple's own retail name for that unit is longer, and it is not what
+this field carries.
 
 # Two shapes that bite
 

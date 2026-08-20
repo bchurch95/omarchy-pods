@@ -121,7 +121,8 @@ namespace AirpodsTrayApp
                 case AirPodsModel::AirPods2:               return QStringLiteral("AirPods (2nd generation)");
                 case AirPodsModel::AirPods3:               return QStringLiteral("AirPods (3rd generation)");
                 case AirPodsModel::AirPods4:               return QStringLiteral("AirPods 4");
-                case AirPodsModel::AirPods4ANC:            return QStringLiteral("AirPods 4 with ANC");
+                // Deliberately the same name as the plain AirPods 4: the panel says the family, and the capability keys say what it can do.
+                case AirPodsModel::AirPods4ANC:            return QStringLiteral("AirPods 4");
                 case AirPodsModel::AirPodsPro:             return QStringLiteral("AirPods Pro");
                 case AirPodsModel::AirPodsPro2Lightning:   return QStringLiteral("AirPods Pro 2");
                 case AirPodsModel::AirPodsPro2USBC:        return QStringLiteral("AirPods Pro 2 (USB-C)");
