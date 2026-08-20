@@ -47,6 +47,25 @@
 
 ## Screenshots
 
+The panel is built from the capability keys the daemon publishes, so three
+different AirPods give three different panels. Same plugin, same build, nothing
+configured differently between them.
+
+| | | |
+|:---:|:---:|:---:|
+| <img src="docs/panel-model-airpods4.png" alt="AirPods 4 with ANC"><br>**AirPods 4 with ANC**<br>all four modes, and One-Bud ANC to hold them with one pod in | <img src="docs/panel-model-pro3.png" alt="AirPods Pro 3"><br>**AirPods Pro 3**<br>no Off row: the Pro 3 dropped it | <img src="docs/panel-model-max2.png" alt="AirPods Max 2"><br>**AirPods Max 2**<br>one battery, no case, and no One-Bud ANC to offer |
+
+Both AirPods 4 variants say **AirPods 4** in the title, because the name is the
+family and the rows underneath are what the unit can actually do. The plain
+AirPods 4 has no listening modes at all, so it gets no listening section.
+
+Every screenshot in this section, the Pro 3 included, was made by writing one
+status line by hand and photographing the panel that came back. An AirPods Pro 3
+is the only pair on hand here, and it would not have posed for all of these
+anyway. It works because the panel reads that file and nothing else.
+
+### States
+
 | | |
 |:---:|:---:|
 | <img src="docs/panel-noise-cancellation.png" alt="Noise Cancellation"><br>Noise Cancellation, both pods in | <img src="docs/panel-adaptive.png" alt="Adaptive"><br>Adaptive, with the noise level and Conversation Awareness on |
