@@ -38,6 +38,7 @@ private slots:
         QTest::newRow("AirPodsPro2USBC")   << int(AirPodsModel::AirPodsPro2USBC);
         QTest::newRow("AirPodsMaxL")       << int(AirPodsModel::AirPodsMaxLightning);
         QTest::newRow("AirPodsMaxUSBC")    << int(AirPodsModel::AirPodsMaxUSBC);
+        QTest::newRow("AirPodsMax2")       << int(AirPodsModel::AirPodsMax2);
         QTest::newRow("Unknown")           << int(AirPodsModel::Unknown);
     }
 
@@ -59,6 +60,7 @@ private slots:
         QCOMPARE(parseModelNumber("A2032"), AirPodsModel::AirPods2);
         QCOMPARE(parseModelNumber("A2096"), AirPodsModel::AirPodsMaxLightning);
         QCOMPARE(parseModelNumber("A3184"), AirPodsModel::AirPodsMaxUSBC);
+        QCOMPARE(parseModelNumber("A3454"), AirPodsModel::AirPodsMax2);
         QCOMPARE(parseModelNumber("A2565"), AirPodsModel::AirPods3);
         QCOMPARE(parseModelNumber("A3047"), AirPodsModel::AirPodsPro2USBC);
         QCOMPARE(parseModelNumber("A2931"), AirPodsModel::AirPodsPro2Lightning);
@@ -98,6 +100,7 @@ private slots:
             AirPodsModel::AirPodsPro3,
             AirPodsModel::AirPodsMaxLightning,
             AirPodsModel::AirPodsMaxUSBC,
+            AirPodsModel::AirPodsMax2,
         };
         for (const auto m : known) {
             const QString name = modelDisplayName(m);
@@ -113,12 +116,33 @@ private slots:
         }
         // Unknown must stay empty so consumers can skip-render.
         QCOMPARE(modelDisplayName(AirPodsModel::Unknown), QString());
+        // The loop above only asks for a non-empty AirPods-prefixed string, so pin the published name too.
+        QCOMPARE(modelDisplayName(AirPodsModel::AirPodsMax2), QStringLiteral("AirPods Max 2"));
+    }
+
+    // model_int is persisted and published, so any renumbering here is a break, not a refactor.
+    void modelIntsAreStable()
+    {
+        QCOMPARE(int(AirPodsModel::Unknown), 0);
+        QCOMPARE(int(AirPodsModel::AirPods1), 1);
+        QCOMPARE(int(AirPodsModel::AirPods2), 2);
+        QCOMPARE(int(AirPodsModel::AirPods3), 3);
+        QCOMPARE(int(AirPodsModel::AirPodsPro), 4);
+        QCOMPARE(int(AirPodsModel::AirPodsPro2Lightning), 5);
+        QCOMPARE(int(AirPodsModel::AirPodsPro2USBC), 6);
+        QCOMPARE(int(AirPodsModel::AirPodsMaxLightning), 7);
+        QCOMPARE(int(AirPodsModel::AirPodsMaxUSBC), 8);
+        QCOMPARE(int(AirPodsModel::AirPods4), 9);
+        QCOMPARE(int(AirPodsModel::AirPods4ANC), 10);
+        QCOMPARE(int(AirPodsModel::AirPodsPro3), 11);
+        QCOMPARE(int(AirPodsModel::AirPodsMax2), 12);
     }
 
     void isModelHeadset_onlyMax()
     {
         QVERIFY(isModelHeadset(AirPodsModel::AirPodsMaxLightning));
         QVERIFY(isModelHeadset(AirPodsModel::AirPodsMaxUSBC));
+        QVERIFY(isModelHeadset(AirPodsModel::AirPodsMax2));
         QVERIFY(!isModelHeadset(AirPodsModel::AirPods1));
         QVERIFY(!isModelHeadset(AirPodsModel::AirPodsPro));
         QVERIFY(!isModelHeadset(AirPodsModel::AirPodsPro2USBC));
@@ -145,6 +169,7 @@ private slots:
         QVERIFY(!isProSeriesAirPods(AirPodsModel::AirPods4ANC));
         QVERIFY(!isProSeriesAirPods(AirPodsModel::AirPodsMaxLightning));
         QVERIFY(!isProSeriesAirPods(AirPodsModel::AirPodsMaxUSBC));
+        QVERIFY(!isProSeriesAirPods(AirPodsModel::AirPodsMax2));
         QVERIFY(!isProSeriesAirPods(AirPodsModel::Unknown));
     }
 
