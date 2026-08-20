@@ -47,4 +47,5 @@ grid, and for the same reason: a mark that cannot depend on what the active
 theme's font happens to carry. Since 2026-08-20 it draws one of three product
 outlines lifted from the chapter nav on apple.com/airpods, picked from
 `is_headset` and `is_pro_series`, and each outline is fitted to its measured ink
-box because Apple's artboards sit the art low and leave uneven margin.
+box because Apple's artboards sit the art low and leave uneven margin. They are
+Apple's marks, not ours, and the README licence section says so.

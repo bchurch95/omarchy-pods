@@ -43,7 +43,7 @@ does not use it, and runs `librepods-ctl` only for the control verbs below.
 | `adaptive_noise_level` | int | 0-100, only meaningful while `noise_mode` is 3 |
 | `one_bud_anc_mode` | bool | Pro only |
 | `model_name` | string | marketing name, empty until the device is identified |
-| `is_pro_series` | bool | the Pro silhouette in the bar, nothing else since 2026-08-20 |
+| `is_pro_series` | bool | the Pro silhouette in the bar, and the panel's fallback when the four keys below are absent |
 | `supports_noise_control` | bool | false on AirPods 1, 2, 3 and the plain 4, which have no modes at all |
 | `supports_adaptive` | bool | H2 parts with ANC: AirPods 4 (ANC), Pro 2, Pro 3, Max 2 |
 | `supports_conversational_awareness` | bool | same four |
@@ -69,9 +69,14 @@ for shape changes that would break a reader, not for new keys.
 That makes absence meaningful. `Model.parseStatus` falls back to `is_pro_series`
 for adaptive, Conversation Awareness and One-Bud ANC, and to true for
 `supports_noise_control`, which is exactly the behaviour the panel had before,
-including its one wrong answer: AirPods 4 with ANC read as a plain AirPods 4.
-A parser that treats a missing key as false instead would strip Adaptive from a
-Pro 2 on any older daemon.
+wrong answers included: an AirPods Pro 1 is offered Adaptive and Conversation
+Awareness it does not have, and an AirPods 4 with ANC is denied both. A parser
+that treats a missing key as false instead would strip Adaptive from a Pro 2 on
+any older daemon, which is the worse trade.
+
+Not everything here was additive. Four AirPods Pro 3 codes that Apple never
+published, `A3066` and `A3334` through `A3336`, were dropped the same day, so a
+device reporting one of them now reads `Unknown` rather than Pro 3.
 
 # Two shapes that bite
 

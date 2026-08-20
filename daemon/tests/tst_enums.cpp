@@ -67,8 +67,13 @@ private slots:
         QCOMPARE(parseModelNumber("A3053"), AirPodsModel::AirPods4);
         QCOMPARE(parseModelNumber("A3056"), AirPodsModel::AirPods4ANC);
         QCOMPARE(parseModelNumber("A3064"), AirPodsModel::AirPodsPro3);
-        // Apple's list has no A3334, so the dropped guess must not answer Pro 3.
+        QCOMPARE(parseModelNumber("A3063"), AirPodsModel::AirPodsPro3);
+        QCOMPARE(parseModelNumber("A3065"), AirPodsModel::AirPodsPro3);
+        // Apple publishes none of these four, so the dropped guesses must not answer Pro 3.
+        QCOMPARE(parseModelNumber("A3066"), AirPodsModel::Unknown);
         QCOMPARE(parseModelNumber("A3334"), AirPodsModel::Unknown);
+        QCOMPARE(parseModelNumber("A3335"), AirPodsModel::Unknown);
+        QCOMPARE(parseModelNumber("A3336"), AirPodsModel::Unknown);
         QCOMPARE(parseModelNumber("ZZZZZ"), AirPodsModel::Unknown);
         QCOMPARE(parseModelNumber(""),      AirPodsModel::Unknown);
     }
@@ -117,8 +122,10 @@ private slots:
         }
         // Unknown must stay empty so consumers can skip-render.
         QCOMPARE(modelDisplayName(AirPodsModel::Unknown), QString());
-        // The loop above only asks for a non-empty AirPods-prefixed string, so pin the published name too.
+        // The loop above only asks for a non-empty AirPods-prefixed string, so pin the published names too.
         QCOMPARE(modelDisplayName(AirPodsModel::AirPodsMax2), QStringLiteral("AirPods Max 2"));
+        // Two capability sets cannot share one model_name, which is what the panel titles with.
+        QVERIFY(modelDisplayName(AirPodsModel::AirPods4) != modelDisplayName(AirPodsModel::AirPods4ANC));
     }
 
     // model_int is persisted and published, so any renumbering here is a break, not a refactor.

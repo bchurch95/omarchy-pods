@@ -151,8 +151,10 @@ published status line the panel reads, and it goes too.
 | `tab` | move to the next panel |
 | `esc` | close |
 
-Every listening key is ignored on a device that lacks the mode, so `a` does
-nothing on an AirPods Pro 1 and the four mode keys do nothing on an AirPods 3.
+Every listening key is ignored on a device the daemon says lacks the mode, so
+`a` does nothing on an AirPods Pro 1 and the four mode keys do nothing on an
+AirPods 3. A daemon older than the capability keys cannot say, and the panel
+falls back to what it gated on before.
 
 Left click opens the panel. Right click cycles the listening mode without
 opening anything.
@@ -208,3 +210,9 @@ Shipping both in one repository is aggregation, not combination, so the widget
 stays MIT and the daemon stays GPL-3.0. What was modified, and the upstream
 commit it was forked from, are recorded in
 [daemon/UPSTREAM.md](daemon/UPSTREAM.md).
+
+The three product outlines in `AirPodsIcon.qml` are Apple's, taken from the
+chapter navigation on [apple.com/airpods](https://www.apple.com/airpods/) so the
+bar shows the hardware you actually own. AirPods, AirPods Pro and AirPods Max are
+trademarks of Apple Inc., which does not sponsor or endorse this plugin, and the
+outlines are not covered by the MIT grant above. Ask before reusing them.

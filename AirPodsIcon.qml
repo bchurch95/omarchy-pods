@@ -45,7 +45,8 @@ Item {
 
     ShapePath {
       fillColor: root.color
-      strokeWidth: 0
+      // Negative, not zero: zero still strokes, and strokeColor defaults to white.
+      strokeWidth: -1
       // SVG fills non-zero, and the ear-tip holes are wound against their outline.
       fillRule: ShapePath.WindingFill
       PathSvg { path: root.isPro ? root.proPath : root.isMax ? root.maxPath : root.budsPath }
