@@ -43,7 +43,11 @@ does not use it, and runs `librepods-ctl` only for the control verbs below.
 | `adaptive_noise_level` | int | 0-100, only meaningful while `noise_mode` is 3 |
 | `one_bud_anc_mode` | bool | Pro only |
 | `model_name` | string | marketing name, empty until the device is identified |
-| `is_pro_series` | bool | gates Conversation Awareness, One-Bud ANC, Adaptive |
+| `is_pro_series` | bool | the Pro silhouette in the bar, nothing else since 2026-08-20 |
+| `supports_noise_control` | bool | false on AirPods 1, 2, 3 and the plain 4, which have no modes at all |
+| `supports_adaptive` | bool | H2 parts with ANC: AirPods 4 (ANC), Pro 2, Pro 3, Max 2 |
+| `supports_conversational_awareness` | bool | same four |
+| `supports_one_bud_anc` | bool | noise control and a second bud, so never on a Max |
 | `ear_detection_behavior` | int | 0 pause when one is out, 1 when both are out, 2 never |
 | `lid_state` | int | 0 open, 1 closed, 2 unknown |
 
@@ -54,6 +58,20 @@ sample-input comment written from the insert calls, will be wrong.
 Thirteen `*_total` counters also appear, along with `model_int` and
 `model_number`. They are daemon telemetry and identity, not panel data, and
 nothing in the plugin reads them.
+
+# Capability keys are additive, and absence is not false
+
+The four `supports_*` capability keys landed on 2026-08-20 without moving
+`schema_version`, the same way `is_headset` and `supports_noise_off` did before
+them: a panel that reads none of them keeps working, and the version gate exists
+for shape changes that would break a reader, not for new keys.
+
+That makes absence meaningful. `Model.parseStatus` falls back to `is_pro_series`
+for adaptive, Conversation Awareness and One-Bud ANC, and to true for
+`supports_noise_control`, which is exactly the behaviour the panel had before,
+including its one wrong answer: AirPods 4 with ANC read as a plain AirPods 4.
+A parser that treats a missing key as false instead would strip Adaptive from a
+Pro 2 on any older daemon.
 
 # Two shapes that bite
 

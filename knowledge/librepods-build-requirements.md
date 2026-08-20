@@ -14,7 +14,7 @@ verified:
 Upstream `kavishdevar/librepods` `linux/main.cpp` is 1138 lines and contains no
 `schema_version`, no `"status"` branch, and none of the `adaptive:`, `onebud:`
 or `ca:` verbs. Its `linux/enums.h` has no AirPods Pro 3 entry at all: no
-`AirPodsPro3`, no `A306x`, no `A333x`.
+`AirPodsPro3` and no `A306x`, and nothing at all for the 2026 AirPods Max 2.
 
 The AUR carries `librepods 1.0.0rc1`, `librepods-git`, `librepods-rust-git` and
 `librepods-rust-bin`, all built from upstream. So an AirPods Pro 3 owner

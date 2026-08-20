@@ -41,7 +41,10 @@ fine. So "it is an MDI glyph" says nothing either.
 # What the plugin does
 
 The selected listening mode is marked with `nf-md-check`, which was measured
-working. The bar and hero mark is drawn from primitives in `AirPodsIcon.qml`,
-the same choice the stock Tailscale plugin makes for its dot grid, and for the
-same reason: a mark that cannot depend on what the active theme's font happens
-to carry.
+working. The bar and hero mark is drawn in `AirPodsIcon.qml` with
+`QtQuick.Shapes`, the same choice the stock Tailscale plugin makes for its dot
+grid, and for the same reason: a mark that cannot depend on what the active
+theme's font happens to carry. Since 2026-08-20 it draws one of three product
+outlines lifted from the chapter nav on apple.com/airpods, picked from
+`is_headset` and `is_pro_series`, and each outline is fitted to its measured ink
+box because Apple's artboards sit the art low and leave uneven margin.

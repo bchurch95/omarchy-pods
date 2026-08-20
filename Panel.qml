@@ -46,9 +46,15 @@ Panel {
   ]
   readonly property string heroPhraseText: activePhrases[phraseIndex % activePhrases.length]
 
-  readonly property bool adaptiveVisible: pods.hasAirPods && pods.isProSeries && pods.noiseMode === Model.NOISE_ADAPTIVE
-  readonly property bool proControlsVisible: pods.hasAirPods && pods.isProSeries
+  readonly property bool adaptiveVisible: pods.hasAirPods && pods.supportsAdaptive && pods.noiseMode === Model.NOISE_ADAPTIVE
+  // Three separate capabilities, because a Max 2 has Conversation Awareness and no second bud.
+  readonly property bool modesVisible: pods.hasAirPods && modes.length > 0
+  readonly property bool caVisible: pods.hasAirPods && pods.supportsConversationalAwareness
+  readonly property bool oneBudVisible: pods.hasAirPods && pods.supportsOneBudANC
   readonly property string lidLabel: Model.lidText(pods.lidState)
+
+  // The daemon names the family, so the mark is the shape of the device actually connected.
+  readonly property string podsVariant: pods.isHeadset ? "max" : pods.isProSeries ? "pro" : "buds"
 
   // The daemon decides which modes this device has, so no row is drawn that the hardware ignores.
   readonly property var modes: pods.availableModes()
@@ -59,10 +65,8 @@ Panel {
     if (!pods.hasAirPods) return rows
     for (var i = 0; i < modes.length; i++) rows.push("mode:" + modes[i])
     if (adaptiveVisible) rows.push("adaptive")
-    if (proControlsVisible) {
-      rows.push("ca")
-      rows.push("onebud")
-    }
+    if (caVisible) rows.push("ca")
+    if (oneBudVisible) rows.push("onebud")
     rows.push("ear")
     return rows
   }
@@ -135,8 +139,10 @@ Panel {
       Item {
         AirPodsIcon {
           anchors.centerIn: parent
-          iconSize: Style.space(12)
+          // A pair of buds is wider than it is tall, so it takes a size above the stock 12 to carry the row.
+          iconSize: Style.space(13)
           color: root.barIconColor
+          variant: root.podsVariant
         }
       }
     }
@@ -171,12 +177,13 @@ Panel {
         var key = String(t).toLowerCase()
         if (key === "r") pods.refresh()
         else if (!pods.hasAirPods) return
-        else if (key === "o" && pods.supportsNoiseOff) pods.setNoiseMode(Model.NOISE_OFF)
+        // The mode keys need no capability check of their own: setNoiseMode drops a mode this device does not have.
+        else if (key === "o") pods.setNoiseMode(Model.NOISE_OFF)
         else if (key === "t") pods.setNoiseMode(Model.NOISE_TRANSPARENCY)
         else if (key === "n") pods.setNoiseMode(Model.NOISE_ANC)
-        else if (key === "a" && pods.isProSeries) pods.setNoiseMode(Model.NOISE_ADAPTIVE)
-        else if (key === "c" && pods.isProSeries) pods.setConversationalAwareness(!pods.conversationalAwareness)
-        else if (key === "b" && pods.isProSeries) pods.setOneBudANC(!pods.oneBudANC)
+        else if (key === "a") pods.setNoiseMode(Model.NOISE_ADAPTIVE)
+        else if (key === "c" && pods.supportsConversationalAwareness) pods.setConversationalAwareness(!pods.conversationalAwareness)
+        else if (key === "b" && pods.supportsOneBudANC) pods.setOneBudANC(!pods.oneBudANC)
         else if (key === "e") pods.cycleEarDetection()
       }
 
@@ -209,8 +216,10 @@ Panel {
             iconOpacity: pods.hasAirPods ? 1.0 : 0.5
             iconComponent: Component {
               AirPodsIcon {
-                iconSize: Style.font.display
+                // Same reason as the bar: display leaves the wide marks short against a two line title.
+                iconSize: Style.font.displayLarge
                 color: pods.hasAirPods ? root.foreground : root.dim
+                variant: root.podsVariant
               }
             }
           }
@@ -267,7 +276,7 @@ Panel {
           }
 
           Column {
-            visible: pods.hasAirPods
+            visible: root.modesVisible
             width: parent.width
             spacing: Style.space(10)
 
@@ -298,16 +307,17 @@ Panel {
           }
 
           PanelSeparator {
-            visible: root.proControlsVisible
+            visible: root.caVisible || root.oneBudVisible
             foreground: root.foreground
           }
 
           Column {
-            visible: root.proControlsVisible
+            visible: root.caVisible || root.oneBudVisible
             width: parent.width
             spacing: Style.space(6)
 
             ToggleRow {
+              visible: root.caVisible
               width: parent.width
               rowName: "ca"
               label: "Conversation Awareness"
@@ -317,6 +327,7 @@ Panel {
             }
 
             ToggleRow {
+              visible: root.oneBudVisible
               width: parent.width
               rowName: "onebud"
               label: "One-Bud ANC"

@@ -18,14 +18,20 @@
 - **Battery** for the left pod, the right pod and the case, each with a charging
   and in-ear hint. Nothing else on a Linux box knows these numbers: BlueZ does
   not expose `org.bluez.Battery1` for AirPods.
-- **Listening mode**, and only the modes the device actually has. Adaptive is
-  Pro-only, and AirPods Pro 3 dropped Off entirely, so the panel asks the daemon
-  rather than assuming four rows.
+- **Listening mode**, and only the modes the device actually has. AirPods 1, 2, 3
+  and the plain AirPods 4 get no section at all, AirPods Pro 3 dropped Off, and
+  Adaptive needs an H2 part that also has noise cancellation, so the panel asks
+  the daemon rather than assuming four rows.
 - **Adaptive noise level**, shown only while Adaptive is the active mode.
-- **Conversation Awareness** and **One-Bud ANC**, on the Pro models.
+- **Conversation Awareness** on the same models that have Adaptive, and
+  **One-Bud ANC** on the ones with a second bud, which is why an AirPods Max 2
+  shows the first and not the second.
 - **Ear detection**: pause when one pod is out, pause when both are out, or
   never pause.
 - **Case lid**, when the case has broadcast its state.
+- **A mark that matches the hardware**: stemmed buds, AirPods Pro or AirPods Max,
+  chosen from the model the daemon reports. AirPods Max carry no case, so their
+  panel drops the case row and shows a single headphone battery.
 
 ## Deliberately absent
 
@@ -52,8 +58,10 @@
 - **The daemon in [`daemon/`](daemon/), built and running.** It ships in this
   repository because nothing packaged will do: upstream librepods and every AUR
   package built from it carry no state file, no `status` verb, none of the
-  `ca:`, `onebud:` or `adaptive:` verbs, and no AirPods Pro 3 model map, so the
-  panel would stay hidden forever. See [daemon/UPSTREAM.md](daemon/UPSTREAM.md)
+  `ca:`, `onebud:` or `adaptive:` verbs, and a model map that stops before
+  AirPods Pro 3, so the panel would stay hidden forever. The copy here carries
+  every model number Apple lists as of August 2026, up to the 2026 AirPods
+  Max 2, and what each of those models can actually do. See [daemon/UPSTREAM.md](daemon/UPSTREAM.md)
   for what it is, who wrote it and what was changed. `omarchy plugin add` only
   clones the plugin; `setup` builds the daemon.
 - AirPods paired to the machine through the usual Bluetooth flow.
@@ -142,6 +150,9 @@ published status line the panel reads, and it goes too.
 | `r` | refresh |
 | `tab` | move to the next panel |
 | `esc` | close |
+
+Every listening key is ignored on a device that lacks the mode, so `a` does
+nothing on an AirPods Pro 1 and the four mode keys do nothing on an AirPods 3.
 
 Left click opens the panel. Right click cycles the listening mode without
 opening anything.

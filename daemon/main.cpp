@@ -1732,6 +1732,11 @@ public:
         // The panel needs the shape before any battery packet has arrived.
         status.insert("is_headset", d ? isModelHeadset(d->model()) : false);
         status.insert("supports_noise_off", d ? supportsNoiseOff(d->model()) : true);
+        // Additive keys: a panel that reads none of them keeps its is_pro_series behaviour.
+        status.insert("supports_noise_control", d ? supportsNoiseControl(d->model()) : true);
+        status.insert("supports_adaptive", d ? supportsAdaptiveAudio(d->model()) : false);
+        status.insert("supports_conversational_awareness", d ? supportsConversationalAwareness(d->model()) : false);
+        status.insert("supports_one_bud_anc", d ? supportsOneBudANC(d->model()) : false);
         // Raw "A<NNNN>" code from the AAP metadata packet. Useful
         // for debugging new/unrecognized models — if a fresh
         // device sends a code that isn't in parseModelNumber's
