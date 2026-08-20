@@ -680,8 +680,7 @@ public slots:
     int loadRetryAttempts() const { return m_settings->value("bluetooth/retryAttempts", 3).toInt(); }
     void saveRetryAttempts(int attempts) { m_settings->setValue("bluetooth/retryAttempts", attempts); }
 
-    // Only Apple's own controller drops A2DP packets under continuous BLE
-    // discovery, and it spells its modalias differently on USB and on UART.
+    // Only Apple's own controller drops A2DP packets under continuous BLE discovery.
     static bool bluetoothControllerIsApple()
     {
         static const bool affected = []() {
