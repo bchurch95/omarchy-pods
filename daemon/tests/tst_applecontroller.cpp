@@ -27,6 +27,9 @@ private slots:
             QStringLiteral("usb:v8087p0A2Bd0010dcE0dsc01dp01icE0isc01ip01in00")));
         QVERIFY(!AppleController::modaliasIsApple(
             QStringLiteral("acpi:BCM2E39:")));
+        // An ACPI id that only starts with APPLE is not the UART controller.
+        QVERIFY(!AppleController::modaliasIsApple(
+            QStringLiteral("acpi:BCM2E39:APPLE-OTHER:")));
         QVERIFY(!AppleController::modaliasIsApple(QString()));
     }
 
