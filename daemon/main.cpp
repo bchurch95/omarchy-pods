@@ -47,6 +47,7 @@
 #include "ble/bleutils.h"
 #include "QRCodeImageProvider.hpp"
 #include "systemsleepmonitor.hpp"
+#include "applecontroller.hpp"
 #include "controlreconnect.hpp"
 
 using namespace AirpodsTrayApp::Enums;
@@ -679,8 +680,8 @@ public slots:
     int loadRetryAttempts() const { return m_settings->value("bluetooth/retryAttempts", 3).toInt(); }
     void saveRetryAttempts(int attempts) { m_settings->setValue("bluetooth/retryAttempts", attempts); }
 
-    // Sample input: usb:v8087p0A2Bd0010dcE0dsc01dp01icE0isc01ip01in00
-    // Only Apple's own controller (vendor 05AC) drops A2DP packets under continuous BLE discovery.
+    // Only Apple's own controller drops A2DP packets under continuous BLE
+    // discovery, and it spells its modalias differently on USB and on UART.
     static bool bluetoothControllerIsApple()
     {
         static const bool affected = []() {
@@ -691,7 +692,7 @@ public slots:
                 QFile modalias(sys.filePath(adapter) + QStringLiteral("/device/modalias"));
                 if (!modalias.open(QIODevice::ReadOnly | QIODevice::Text))
                     continue;
-                if (QString::fromLatin1(modalias.readAll()).contains(QStringLiteral("v05AC"), Qt::CaseInsensitive))
+                if (AppleController::modaliasIsApple(QString::fromLatin1(modalias.readAll())))
                     return true;
             }
             return false;
