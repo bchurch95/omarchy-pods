@@ -116,6 +116,26 @@ private slots:
         }
         // Unknown must stay empty so consumers can skip-render.
         QCOMPARE(modelDisplayName(AirPodsModel::Unknown), QString());
+        // The loop above only asks for a non-empty AirPods-prefixed string, so pin the published name too.
+        QCOMPARE(modelDisplayName(AirPodsModel::AirPodsMax2), QStringLiteral("AirPods Max 2"));
+    }
+
+    // model_int is persisted and published, so any renumbering here is a break, not a refactor.
+    void modelIntsAreStable()
+    {
+        QCOMPARE(int(AirPodsModel::Unknown), 0);
+        QCOMPARE(int(AirPodsModel::AirPods1), 1);
+        QCOMPARE(int(AirPodsModel::AirPods2), 2);
+        QCOMPARE(int(AirPodsModel::AirPods3), 3);
+        QCOMPARE(int(AirPodsModel::AirPodsPro), 4);
+        QCOMPARE(int(AirPodsModel::AirPodsPro2Lightning), 5);
+        QCOMPARE(int(AirPodsModel::AirPodsPro2USBC), 6);
+        QCOMPARE(int(AirPodsModel::AirPodsMaxLightning), 7);
+        QCOMPARE(int(AirPodsModel::AirPodsMaxUSBC), 8);
+        QCOMPARE(int(AirPodsModel::AirPods4), 9);
+        QCOMPARE(int(AirPodsModel::AirPods4ANC), 10);
+        QCOMPARE(int(AirPodsModel::AirPodsPro3), 11);
+        QCOMPARE(int(AirPodsModel::AirPodsMax2), 12);
     }
 
     void isModelHeadset_onlyMax()

@@ -247,7 +247,7 @@ Panel {
                 visible: pods.isHeadset
                 width: parent.width
                 label: "Headphones"
-                pod: ({ level: pods.headsetLevel, charging: pods.headsetCharging, inEar: false })
+                pod: ({ level: pods.headsetBattery.level, charging: pods.headsetBattery.charging, inEar: false })
               }
               PodRow { visible: !pods.isHeadset; width: parent.width; label: "Left"; pod: pods.leftPod }
               PodRow { visible: !pods.isHeadset; width: parent.width; label: "Right"; pod: pods.rightPod }

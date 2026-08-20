@@ -35,6 +35,7 @@ namespace AirpodsTrayApp
             AirPods4,
             AirPods4ANC,
             AirPodsPro3,
+            // Appended, never inserted: this int is persisted and published as model_int.
             AirPodsMax2
         };
         Q_ENUM_NS(AirPodsModel)
@@ -52,6 +53,7 @@ namespace AirpodsTrayApp
                 {"A2083", AirPodsModel::AirPodsPro},
                 {"A2096", AirPodsModel::AirPodsMaxLightning},
                 {"A3184", AirPodsModel::AirPodsMaxUSBC},
+                // A3454 is Apple's code for the 2026 Max 2, read off FCC ID BCG-A3454; its BLE model id is unknown here, so only AAP metadata names it.
                 {"A3454", AirPodsModel::AirPodsMax2},
                 {"A2565", AirPodsModel::AirPods3},
                 {"A2564", AirPodsModel::AirPods3},
