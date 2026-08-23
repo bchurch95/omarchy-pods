@@ -29,6 +29,11 @@ openpods_add_test(tst_autostartmanager
     ../autostartmanager.hpp
 )
 
+openpods_add_test(tst_capturematch
+    tst_capturematch.cpp
+    ../media/capturematch.hpp
+)
+
 openpods_add_test(tst_logger
     tst_logger.cpp
     ../logger.h

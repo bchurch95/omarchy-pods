@@ -1,4 +1,5 @@
 #include "mediacontroller.h"
+#include "capturematch.hpp"
 #include "logger.h"
 #include "eardetection.hpp"
 #include "playerstatuswatcher.h"
@@ -349,19 +350,40 @@ void MediaController::cancelPendingA2dpActivation() {
   ++m_a2dpRetryGeneration;
 }
 
-void MediaController::attemptA2dpActivation(const QString &macAddress, quint64 generation, int attempt) {
+void MediaController::attemptA2dpActivation(const QString &macAddress, quint64 generation, int attempt, int unanswered) {
+  static constexpr int kMaxAttempts = 6;
+  static constexpr int kDelayMs = 1500;
+  static constexpr int kCaptureRecheckMs = 10000;
+  static constexpr int kMaxUnansweredChecks = 6;
+
   // A newer request or a disconnect superseded this chain, so it must not restore a stale device.
   if (generation != m_a2dpRetryGeneration) return;
 
   // PipeWire publishes the bluez5 card asynchronously, so the first attempts commonly find nothing.
   setConnectedDeviceMacAddress(macAddress);
+
+  // Switching under a live capture cuts the mic, and no other timer re-arms this ladder.
+  const CaptureState capture = m_pulseAudio->captureState(connectedDeviceMacAddress);
+  if (capture != CaptureState::Idle) {
+    const int nextUnanswered = unansweredChecksAfter(capture, unanswered);
+    if (nextUnanswered >= kMaxUnansweredChecks) {
+      LOG_ERROR("Giving up on A2DP profile activation for " << macAddress
+                << ", the capture query came back unknown " << nextUnanswered << " times running");
+      return;
+    }
+    LOG_INFO("Capture " << (capture == CaptureState::Live ? "live" : "unknown")
+             << " on the AirPods, re-checking in " << kCaptureRecheckMs << "ms");
+    QTimer::singleShot(kCaptureRecheckMs, this, [this, macAddress, generation, attempt, nextUnanswered]() {
+      attemptA2dpActivation(macAddress, generation, attempt, nextUnanswered);
+    });
+    return;
+  }
+
   if (activateA2dpProfile()) {
     LOG_INFO("A2DP profile activated (attempt " << (attempt + 1) << ")");
     return;
   }
 
-  static constexpr int kMaxAttempts = 6;
-  static constexpr int kDelayMs = 1500;
   if (attempt + 1 >= kMaxAttempts) {
     LOG_ERROR("Giving up on A2DP profile activation after " << kMaxAttempts << " attempts");
     return;

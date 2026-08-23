@@ -1,4 +1,5 @@
 #include "pulseaudiocontroller.h"
+#include "capturematch.hpp"
 #include "logger.h"
 #include "../snaptogrid.hpp"
 #include <QElapsedTimer>
@@ -416,6 +417,83 @@ bool PulseAudioController::isProfileAvailable(const QString &cardName, const QSt
     pa_threaded_mainloop_unlock(m_mainloop);
 
     return data.available;
+}
+
+// A stream attached to the AirPods mic is a call holding the headset profile, and a
+// muted caller still holds it, so both queries run under one lock to see one server state.
+CaptureState PulseAudioController::captureState(const QString &macAddress)
+{
+    // Both are known here rather than unanswered, and the activation path already handles them.
+    if (!m_initialized || macAddress.isEmpty()) return CaptureState::Idle;
+
+    struct SourceData {
+        QVector<uint32_t> indexes;
+        bool failed = false;
+        QString macAddress;
+        pa_threaded_mainloop *mainloop = nullptr;
+    } sources;
+    sources.macAddress = macAddress;
+    sources.mainloop = m_mainloop;
+
+    auto sourceCallback = [](pa_context *, const pa_source_info *info, int eol, void *userdata) {
+        SourceData *d = static_cast<SourceData*>(userdata);
+        if (eol != 0) {
+            if (eol < 0) d->failed = true;
+            pa_threaded_mainloop_signal(d->mainloop, 0);
+            return;
+        }
+        // The card's own monitor carries the same address and runs under music, so it is excluded.
+        if (!info || info->monitor_of_sink != PA_INVALID_INDEX) {
+            return;
+        }
+        if (sourceNamesAddress(QString::fromUtf8(info->name), d->macAddress)) {
+            d->indexes.append(info->index);
+        }
+    };
+
+    struct StreamData {
+        bool capturing = false;
+        bool failed = false;
+        QVector<uint32_t> indexes;
+        pa_threaded_mainloop *mainloop = nullptr;
+    } streams;
+    streams.mainloop = m_mainloop;
+
+    auto streamCallback = [](pa_context *, const pa_source_output_info *info, int eol, void *userdata) {
+        StreamData *d = static_cast<StreamData*>(userdata);
+        if (eol != 0) {
+            if (eol < 0) d->failed = true;
+            pa_threaded_mainloop_signal(d->mainloop, 0);
+            return;
+        }
+        // A corked stream is an app holding the mic open without capturing, which must not pin the card.
+        if (info && !info->corked && d->indexes.contains(info->source)) {
+            d->capturing = true;
+        }
+    };
+
+    pa_threaded_mainloop_lock(m_mainloop);
+    pa_operation *sourceOp = pa_context_get_source_info_list(m_context, sourceCallback, &sources);
+    const bool sourcesWaited = sourceOp != nullptr && waitForOperation(sourceOp);
+    if (sourceOp) {
+        pa_operation_unref(sourceOp);
+    }
+    bool streamsWaited = true;
+    if (sourcesWaited && !sources.failed && !sources.indexes.isEmpty()) {
+        streams.indexes = sources.indexes;
+        pa_operation *streamOp = pa_context_get_source_output_info_list(m_context, streamCallback, &streams);
+        streamsWaited = streamOp != nullptr && waitForOperation(streamOp);
+        if (streamOp) {
+            pa_operation_unref(streamOp);
+        }
+    }
+    pa_threaded_mainloop_unlock(m_mainloop);
+
+    if (!sourcesWaited || sources.failed || !streamsWaited || streams.failed) {
+        LOG_WARN("PulseAudio capture query failed for " << macAddress << ", capture state unknown");
+        return CaptureState::Unknown;
+    }
+    return streams.capturing ? CaptureState::Live : CaptureState::Idle;
 }
 
 QString PulseAudioController::getActiveCardProfile(const QString &cardName)
