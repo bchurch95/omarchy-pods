@@ -123,9 +123,20 @@ daemon helps here: it defers its activation ladder while a capture is live, so i
 will not pull a live call off the headset profile mid-sentence.
 
 If the headset profiles are missing from the card altogether, so that nothing can
-offer the AirPods microphone at all, disconnect and reconnect the device and
-BlueZ will rebuild the list. This daemon registers no Bluetooth profile, so that
-list is BlueZ's and PipeWire's to produce.
+offer the AirPods microphone at all, BlueZ has no HFP connection to the device.
+The card carries those two profiles only while that connection is up, which is
+why nothing logs an error: no profile is malformed, one is simply not connected.
+Reconnecting that one profile brings them back within a few seconds and leaves
+A2DP playing:
+
+```bash
+busctl call org.bluez /org/bluez/hci0/dev_<MAC> org.bluez.Device1 \
+  ConnectProfile s 0000111e-0000-1000-8000-00805f9b34fb
+```
+
+Disconnecting and reconnecting the whole device also works, at the cost of the
+playback link. This daemon registers no Bluetooth profile, so that list is
+BlueZ's and PipeWire's to produce.
 
 There is a route around all of this that uses no audio profile at all: the AirPods
 can send a high-resolution microphone stream over the same AACP channel this
