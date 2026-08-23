@@ -1,5 +1,6 @@
 #include "pulseaudiocontroller.h"
 #include "capturematch.hpp"
+#include "profilechoice.hpp"
 #include "logger.h"
 #include "../snaptogrid.hpp"
 #include <QElapsedTimer>
@@ -494,6 +495,62 @@ CaptureState PulseAudioController::captureState(const QString &macAddress)
         return CaptureState::Unknown;
     }
     return streams.capturing ? CaptureState::Live : CaptureState::Idle;
+}
+
+QVector<ProfileCandidate> PulseAudioController::getCardProfiles(const QString &cardName)
+{
+    if (!m_initialized || cardName.isEmpty()) {
+        LOG_WARN("No card to query for profiles, name=" << cardName << " initialized=" << m_initialized);
+        return {};
+    }
+
+    struct CallbackData {
+        QVector<ProfileCandidate> candidates;
+        bool failed = false;
+        QString targetCard;
+        pa_threaded_mainloop *mainloop = nullptr;
+    } data;
+    data.targetCard = cardName;
+    data.mainloop = m_mainloop;
+
+    auto callback = [](pa_context *, const pa_card_info *info, int eol, void *userdata) {
+        CallbackData *d = static_cast<CallbackData*>(userdata);
+        // PulseAudio completes the operation even on an error, so record the negative eol.
+        if (eol != 0) {
+            if (eol < 0) d->failed = true;
+            pa_threaded_mainloop_signal(d->mainloop, 0);
+            return;
+        }
+        if (!info || QString::fromUtf8(info->name) != d->targetCard || !info->profiles2) {
+            return;
+        }
+        // profiles2 is a null-terminated array of pointers, unlike the flat profiles list.
+        for (pa_card_profile_info2 **p = info->profiles2; *p; ++p) {
+            d->candidates.append(ProfileCandidate{
+                QString::fromUtf8((*p)->name),
+                QString::fromUtf8((*p)->description ? (*p)->description : ""),
+                static_cast<int>((*p)->priority),
+                (*p)->available != 0,
+                (*p)->n_sinks,
+                (*p)->n_sources,
+            });
+        }
+        pa_threaded_mainloop_signal(d->mainloop, 0);
+    };
+
+    pa_threaded_mainloop_lock(m_mainloop);
+    pa_operation *op = pa_context_get_card_info_by_name(
+        m_context, cardName.toUtf8().constData(), callback, &data);
+    const bool queried = op != nullptr && waitForOperation(op);
+    if (op) {
+        pa_operation_unref(op);
+    }
+    pa_threaded_mainloop_unlock(m_mainloop);
+
+    if (!queried || data.failed) {
+        LOG_WARN("PulseAudio card query failed for " << cardName << ", profile list is empty");
+    }
+    return data.candidates;
 }
 
 QString PulseAudioController::getActiveCardProfile(const QString &cardName)
