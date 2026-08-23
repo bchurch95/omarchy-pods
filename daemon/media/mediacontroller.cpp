@@ -363,6 +363,9 @@ void MediaController::removeAudioOutputDevice() {
   // A retry still in flight would resurrect the sink right after this tears it down.
   cancelPendingA2dpActivation();
 
+  // Disabling the snap needs no device name, so it runs before the guard that can return.
+  m_pulseAudio->enableVolumeSnap(QString(), 5);
+
   if (connectedDeviceMacAddress.isEmpty() || m_deviceOutputName.isEmpty()) {
     LOG_WARN("Connected device MAC address or output name is empty, cannot remove audio output device");
     return;
@@ -374,8 +377,6 @@ void MediaController::removeAudioOutputDevice() {
   }
 
   LOG_INFO("Removing AirPods as audio output device");
-  // An empty sink name disables the snap, and is safe when it was never enabled.
-  m_pulseAudio->enableVolumeSnap(QString(), 5);
   if (!m_pulseAudio->setCardProfile(m_deviceOutputName, "off")) {
     LOG_ERROR("Failed to remove AirPods as audio output device");
   }
