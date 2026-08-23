@@ -5,6 +5,8 @@
 #include <atomic>
 #include <pulse/pulseaudio.h>
 
+#include "capturematch.hpp"
+
 class PulseAudioController : public QObject
 {
     Q_OBJECT
@@ -49,6 +51,9 @@ public:
     QString getCardNameForDevice(const QString &macAddress);
     bool isProfileAvailable(const QString &cardName, const QString &profileName);
     QString getActiveCardProfile(const QString &cardName);
+
+    // Live while any stream is attached to this address's mic, which is what a call holds.
+    CaptureState captureState(const QString &macAddress);
 
 private:
     pa_threaded_mainloop *m_mainloop = nullptr;
