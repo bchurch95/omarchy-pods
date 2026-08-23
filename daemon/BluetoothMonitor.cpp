@@ -82,13 +82,15 @@ bool BluetoothMonitor::checkAlreadyConnectedDevices()
 
     if (reply.type() == QDBusMessage::ErrorMessage)
     {
-        if (!m_sweepFailureLogged) {
-            LOG_WARN("Failed to get managed objects: " << reply.errorMessage());
-            m_sweepFailureLogged = true;
+        // Keyed on the name as well, since an error reply carrying no string reads empty.
+        const QString sweepError = reply.errorName() + QStringLiteral(": ") + reply.errorMessage();
+        if (sweepError != m_lastSweepError) {
+            LOG_WARN("Failed to get managed objects: " << sweepError);
+            m_lastSweepError = sweepError;
         }
         return false;
     }
-    m_sweepFailureLogged = false;
+    m_lastSweepError.clear();
 
     QVariant firstArg = reply.arguments().constFirst();
     QDBusArgument arg = firstArg.value<QDBusArgument>();
