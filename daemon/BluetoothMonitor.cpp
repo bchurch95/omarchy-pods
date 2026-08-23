@@ -5,6 +5,10 @@
 #include <QDBusObjectPath>
 #include <QDBusMetaType>
 
+// bluetoothd answers this sweep in milliseconds, and the watchdog repeats it, so a wedged
+// bluetoothd must not hold the event loop for the 25 s D-Bus default on every tick.
+static constexpr int sweepTimeoutMs = 2000;
+
 BluetoothMonitor::BluetoothMonitor(QObject *parent)
     : QObject(parent), m_dbus(QDBusConnection::systemBus())
 {
@@ -70,14 +74,21 @@ QString BluetoothMonitor::getDeviceName(const QString &devicePath)
 
 bool BluetoothMonitor::checkAlreadyConnectedDevices()
 {
-    QDBusInterface objectManager("org.bluez", "/", "org.freedesktop.DBus.ObjectManager", m_dbus);
-    QDBusMessage reply = objectManager.call("GetManagedObjects");
+    // QDBusInterface introspects the remote object from its constructor on the default 25 s
+    // timeout, so setTimeout on the interface cannot bound this. Build the call directly.
+    QDBusMessage request = QDBusMessage::createMethodCall(
+        "org.bluez", "/", "org.freedesktop.DBus.ObjectManager", "GetManagedObjects");
+    QDBusMessage reply = m_dbus.call(request, QDBus::Block, sweepTimeoutMs);
 
     if (reply.type() == QDBusMessage::ErrorMessage)
     {
-        LOG_WARN("Failed to get managed objects: " << reply.errorMessage());
+        if (!m_sweepFailureLogged) {
+            LOG_WARN("Failed to get managed objects: " << reply.errorMessage());
+            m_sweepFailureLogged = true;
+        }
         return false;
     }
+    m_sweepFailureLogged = false;
 
     QVariant firstArg = reply.arguments().constFirst();
     QDBusArgument arg = firstArg.value<QDBusArgument>();

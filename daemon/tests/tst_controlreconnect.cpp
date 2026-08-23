@@ -43,6 +43,21 @@ private slots:
         QVERIFY(!ControlReconnect::shouldRetryFromWatchdog(false, false, false, false, true));
     }
 
+    void watchdogSweepsBlueZWhenTheDaemonStartedBeforeTheAdapter()
+    {
+        // Cold start with the adapter down: no address was ever learned, so the retry ladder cannot run.
+        QVERIFY(!ControlReconnect::shouldRetryFromWatchdog(false, false, false, false, false));
+        QVERIFY(ControlReconnect::shouldRescanFromWatchdog(false, false, false, false));
+
+        // An address in hand means the retry ladder owns the tick, so the sweep stands down.
+        QVERIFY(!ControlReconnect::shouldRescanFromWatchdog(false, false, false, true));
+
+        // Every other guard still vetoes on its own.
+        QVERIFY(!ControlReconnect::shouldRescanFromWatchdog(true, false, false, false));
+        QVERIFY(!ControlReconnect::shouldRescanFromWatchdog(false, true, false, false));
+        QVERIFY(!ControlReconnect::shouldRescanFromWatchdog(false, false, true, false));
+    }
+
     void tracksRecoveryLifecycle()
     {
         ControlReconnect::Session session;
