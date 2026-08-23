@@ -939,7 +939,7 @@ private slots:
             return;
         }
 
-        LOG_INFO("Control link watchdog: BlueZ still reports the device connected, retrying "
+        LOG_INFO("Control link watchdog: last BlueZ probe said connected, retrying "
                  << m_lastAirPodsAddress);
         scheduleControlReconnect(m_lastAirPodsAddress, m_lastAirPodsName,
                                  QStringLiteral("watchdog recheck"));
