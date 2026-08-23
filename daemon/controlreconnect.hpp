@@ -37,6 +37,14 @@ inline bool shouldRetryFromWatchdog(bool controlSocketConnected, bool recoveryAc
            && haveAddress && bluezReportedConnected;
 }
 
+// A cold start before BlueZ has an adapter learns no address, and BlueZ emits no Connected
+// transition for a device whose object is created already connected, so nothing else fires.
+inline bool shouldRescanFromWatchdog(bool controlSocketConnected, bool recoveryActive,
+                                     bool suspending, bool haveAddress)
+{
+    return !controlSocketConnected && !recoveryActive && !suspending && !haveAddress;
+}
+
 inline int delayMs(int attempt, int jitterMs)
 {
     const int boundedAttempt = std::clamp(attempt, 1, maxDoublings);
