@@ -32,6 +32,8 @@ private slots:
 
 private:
     QDBusConnection m_dbus;
+    // The watchdog repeats the sweep, so a permanent failure must not repeat its warning.
+    bool m_sweepFailureLogged = false;
     void registerDBusService();
     bool isAirPodsDevice(const QString &devicePath);
     QString getDeviceName(const QString &devicePath);

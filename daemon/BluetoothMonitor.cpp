@@ -82,9 +82,13 @@ bool BluetoothMonitor::checkAlreadyConnectedDevices()
 
     if (reply.type() == QDBusMessage::ErrorMessage)
     {
-        LOG_WARN("Failed to get managed objects: " << reply.errorMessage());
+        if (!m_sweepFailureLogged) {
+            LOG_WARN("Failed to get managed objects: " << reply.errorMessage());
+            m_sweepFailureLogged = true;
+        }
         return false;
     }
+    m_sweepFailureLogged = false;
 
     QVariant firstArg = reply.arguments().constFirst();
     QDBusArgument arg = firstArg.value<QDBusArgument>();
