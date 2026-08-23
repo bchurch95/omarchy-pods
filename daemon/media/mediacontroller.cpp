@@ -308,11 +308,6 @@ bool MediaController::activateA2dpProfile() {
 
   // Re-applying the profile WirePlumber already set tears down the live sink under a playing stream.
   const QString activeProfile = m_pulseAudio->getActiveCardProfile(m_deviceOutputName);
-  // A call in progress holds the card on HSP/HFP, and switching it to A2DP would kill the microphone.
-  if (activeProfile.startsWith(QLatin1String("headset-head-unit"))) {
-    LOG_INFO("Headset profile active, leaving it in place: " << activeProfile);
-    return true;
-  }
   if (activeProfile == preferredProfile) {
     LOG_INFO("A2DP profile already active: " << activeProfile);
   } else {
