@@ -1,5 +1,6 @@
 #include "mediacontroller.h"
 #include "capturematch.hpp"
+#include "profilechoice.hpp"
 #include "logger.h"
 #include "eardetection.hpp"
 #include "playerstatuswatcher.h"
@@ -200,34 +201,9 @@ void MediaController::handleConversationalAwareness(const QByteArray &data) {
 }
 
 
-// AirPods support AAC over A2DP (256kbps, ~Apple's max codec rate over BT
-// Classic). Apple Lossless is NOT a Bluetooth-transmittable codec — it
-// requires H2-to-H2 link (Vision Pro / AirPods Max USB-C), unreachable
-// from Linux. So AAC is the ceiling for output quality. LE Audio (LC3) is
-// preferred for duplex (high-quality mic + output) when PipeWire ≥1.2 +
-// BlueZ ≥5.66 advertise BAP profiles. SBC XQ is a fallback that beats
-// vanilla SBC. SBC is last resort.
+// Available when the card offers any playback profile at all.
 bool MediaController::isA2dpProfileAvailable() {
-  if (m_deviceOutputName.isEmpty()) {
-    return false;
-  }
-
-  static const QStringList kHighQualityProfiles = {
-      // LE Audio (PipeWire / BlueZ experimental BAP)
-      "bap-sink",
-      "bap-headset",
-      // Classic A2DP, best codec first
-      "a2dp-sink-aac",
-      "a2dp-sink-sbc_xq",
-      "a2dp-sink-sbc",
-      "a2dp-sink",
-  };
-  for (const QString &p : kHighQualityProfiles) {
-    if (m_pulseAudio->isProfileAvailable(m_deviceOutputName, p)) {
-      return true;
-    }
-  }
-  return false;
+  return !getPreferredA2dpProfile().isEmpty();
 }
 
 QString MediaController::getPreferredA2dpProfile() {
@@ -240,25 +216,14 @@ QString MediaController::getPreferredA2dpProfile() {
     return m_cachedA2dpProfile;
   }
 
-  static const QStringList kProfilesByPreference = {
-      "bap-sink",
-      "bap-headset",
-      "a2dp-sink-aac",
-      "a2dp-sink-sbc_xq",
-      "a2dp-sink-sbc",
-      "a2dp-sink",
-  };
-
-  for (const QString &profile : kProfilesByPreference) {
-    if (m_pulseAudio->isProfileAvailable(m_deviceOutputName, profile)) {
-      LOG_INFO("Selected best available output profile: " << profile);
-      m_cachedA2dpProfile = profile;
-      return profile;
-    }
+  const QVector<ProfileCandidate> profiles = m_pulseAudio->getCardProfiles(m_deviceOutputName);
+  m_cachedA2dpProfile = bestPlaybackProfile(profiles);
+  if (!m_cachedA2dpProfile.isEmpty()) {
+    // The profile name hides the codec: AAC is the bare `a2dp-sink` on this stack.
+    LOG_INFO("Selected best available output profile: " << m_cachedA2dpProfile
+             << " (" << profileDescription(profiles, m_cachedA2dpProfile) << ")");
   }
-
-  m_cachedA2dpProfile.clear();
-  return QString();
+  return m_cachedA2dpProfile;
 }
 
 bool MediaController::restartWirePlumber() {
@@ -307,10 +272,10 @@ bool MediaController::activateA2dpProfile() {
     return false;
   }
 
-  // Re-applying the profile WirePlumber already set tears down the live sink under a playing stream.
+  // Re-applying the profile already in place tears the live sink down under a playing stream.
   const QString activeProfile = m_pulseAudio->getActiveCardProfile(m_deviceOutputName);
   if (activeProfile == preferredProfile) {
-    LOG_INFO("A2DP profile already active: " << activeProfile);
+    LOG_INFO("Best profile already active: " << activeProfile);
   } else {
     LOG_INFO("Activating best output profile: " << preferredProfile);
     if (!m_pulseAudio->setCardProfile(m_deviceOutputName, preferredProfile)) {
@@ -320,12 +285,7 @@ bool MediaController::activateA2dpProfile() {
     LOG_INFO("Profile activated: " << preferredProfile);
   }
 
-  // After A2DP activation the AirPods sink is live + selected as
-  // default. Enable AVRCP 5%-grid snap on it now. AirPods stem-
-  // swipes write 1/15 (~6.67%) increments via AVRCP AbsoluteVolume;
-  // the snap callback in PulseAudioController rounds those back to
-  // the 5% grid so the user gets uniform 5/10/15/... steps that
-  // match Quickshell's keyboard-volume behavior.
+  // AirPods stem swipes write 1/15 steps over AVRCP, so snap them onto the 5% grid.
   QString sink = m_pulseAudio->getDefaultSink();
   if (!sink.isEmpty() && sink.contains(connectedDeviceMacAddress)) {
     m_pulseAudio->enableVolumeSnap(sink, 5);
