@@ -999,12 +999,7 @@ private slots:
         }
         LOG_INFO("AirPods control link recovered");
 
-        // onDeviceDisconnected() cancels any in-flight A2DP activation as soon as the
-        // control link blips, even though that blip is often just BlueZ rebuilding the
-        // profile right after connect (see its comment). If that cancellation raced the
-        // retry loop before it found the PipeWire bluez5 card, the card is left on the
-        // "off" profile with nothing left to retry it. Now that the link is confirmed
-        // back up, re-arm activation so the AirPods don't silently stay muted.
+        // onDeviceDisconnected cancelled any in-flight activation, and a recovering connect skips the usual retry.
         if (!m_lastAirPodsAddress.isEmpty()) {
             QString formattedAddress = m_lastAirPodsAddress;
             formattedAddress.replace(":", "_");
