@@ -103,6 +103,37 @@ The plugin never talks to Bluetooth itself. If `librepods-ctl` is missing or
 the daemon is not running, the panel says so in one line instead of drawing an
 empty surface.
 
+### The output codec, and what the microphone costs
+
+The daemon always selects the highest-bitrate playback profile the card offers,
+which is SBC-XQ at 453 kbps ahead of SBC at 328 and AAC at 256. That is the
+default, and it is re-applied every time the daemon activates the card, because
+PipeWire's own profile priority puts AAC first and would otherwise win.
+
+Selecting the AirPods as a **microphone** gives that up. Over the standard
+Bluetooth profiles, two-way voice runs on a separate low-bandwidth channel, so
+the only profiles exposing a source are `headset-head-unit` at 16 kHz mSBC and
+`headset-head-unit-cvsd` at 8 kHz, and each one replaces the playback profile
+rather than joining it. A card cannot offer a high-quality sink and a microphone
+at the same time. macOS is bound by the same profiles and simply negotiates a
+better voice codec on them.
+
+So take the microphone from another device and leave the AirPods on SBC-XQ. The
+daemon helps here: it defers its activation ladder while a capture is live, so it
+will not pull a live call off the headset profile mid-sentence.
+
+If the headset profiles are missing from the card altogether, so that nothing can
+offer the AirPods microphone at all, disconnect and reconnect the device and
+BlueZ will rebuild the list. This daemon registers no Bluetooth profile, so that
+list is BlueZ's and PipeWire's to produce.
+
+There is a route around all of this that uses no audio profile at all: the AirPods
+can send a high-resolution microphone stream over the same AACP channel this
+daemon already uses for battery and controls, which leaves A2DP playback running
+untouched. Upstream librepods has an implementation of it for its Rust rewrite in
+[PR 655](https://github.com/kavishdevar/librepods/pull/655), unmerged at the time
+of writing. Nothing in this daemon does that today.
+
 ## Install
 
 ```bash

@@ -41,6 +41,27 @@ Two traps that have cost real time here:
 - **AI attribution.** No `Co-Authored-By` for a tool, no "Generated with" line,
   anywhere: commits, PR bodies, comments.
 
+## The output codec is not negotiable
+
+The daemon selects the highest-bitrate playback profile the card offers, SBC-XQ at
+453 kbps ahead of SBC at 328 and AAC at 256, and re-applies it on every activation
+because PipeWire's priority order puts AAC first. A change that lowers the selected
+bitrate is a defect here even when it reads as a simplification, and a guard that
+quietly skips the selection is the same defect in a different costume. One of those
+has already shipped and been reverted.
+
+Over the standard Bluetooth profiles a card cannot expose a high-quality sink and a
+microphone at once: the only profiles carrying a source are 16 kHz mSBC and 8 kHz
+CVSD, and they replace the playback profile. So do not propose selecting the AirPods
+as an input device, and do not add anything that switches to a headset profile on the
+user's behalf. The supported answer is to take the microphone from another device.
+
+The exception is not a profile at all. Apple's AACP channel can carry a
+high-resolution microphone stream while A2DP playback continues untouched, and
+upstream has an unmerged Rust implementation in
+[PR 655](https://github.com/kavishdevar/librepods/pull/655). If you want to raise
+that, raise the upstream path, not a profile switch here.
+
 ## Say what you assumed
 
 Most findings against agent PRs in this repo have been premise errors rather than
