@@ -54,8 +54,6 @@ void PlayerStatusWatcher::onServiceOwnerChanged(const QString &name, const QStri
 
 QString PlayerStatusWatcher::playbackStatusOf(const QString &playerService)
 {
-    if (playerService.isEmpty()) return QString();
-
     QDBusInterface props(playerService, "/org/mpris/MediaPlayer2",
                          "org.freedesktop.DBus.Properties", QDBusConnection::sessionBus());
     if (!props.isValid()) return QString();

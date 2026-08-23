@@ -433,17 +433,6 @@ QStringList MediaController::getPlayingMediaPlayers()
       continue;
     }
 
-    QDBusInterface playerInterface(
-        service,
-        "/org/mpris/MediaPlayer2",
-        "org.mpris.MediaPlayer2.Player",
-        bus);
-
-    if (!playerInterface.isValid())
-    {
-      continue;
-    }
-
     if (PlayerStatusWatcher::playbackStatusOf(service) == "Playing")
     {
       playingServices << service;
