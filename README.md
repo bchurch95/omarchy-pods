@@ -28,7 +28,13 @@
   shows the first and not the second.
 - **Ear detection**: pause when one pod is out, pause when both are out, or
   never pause.
-- **Case lid**, when the case has broadcast its state.
+- **Case lid**, when the case has broadcast its state. Lid state comes from BLE
+  advertisements, and the daemon pauses that discovery while the control link is
+  up, because discovery running alongside a live link is what the crackle in issue
+  26 tracks. So lid state holds its last value for as long as the pods stay
+  connected, and the case level may keep refreshing over the control link, as it
+  does here, or hold like the lid, as the issue 26 reporter saw. Per-pod battery, ANC and ear detection keep updating
+  throughout.
 - **A mark that matches the hardware**: stemmed buds, AirPods Pro or AirPods Max,
   chosen from the model the daemon reports. AirPods Max carry no case, so their
   panel drops the case row and shows a single headphone battery.

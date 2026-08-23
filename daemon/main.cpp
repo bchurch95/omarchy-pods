@@ -47,7 +47,6 @@
 #include "ble/bleutils.h"
 #include "QRCodeImageProvider.hpp"
 #include "systemsleepmonitor.hpp"
-#include "applecontroller.hpp"
 #include "controlreconnect.hpp"
 
 using namespace AirpodsTrayApp::Enums;
@@ -687,29 +686,10 @@ public slots:
     int loadRetryAttempts() const { return m_settings->value("bluetooth/retryAttempts", 3).toInt(); }
     void saveRetryAttempts(int attempts) { m_settings->setValue("bluetooth/retryAttempts", attempts); }
 
-    // Only Apple's own controller drops A2DP packets under continuous BLE discovery.
-    static bool bluetoothControllerIsApple()
-    {
-        static const bool affected = []() {
-            QDir sys(QStringLiteral("/sys/class/bluetooth"));
-            const QStringList adapters = sys.entryList(QStringList() << QStringLiteral("hci*"),
-                                                       QDir::Dirs | QDir::NoDotAndDotDot);
-            for (const QString &adapter : adapters) {
-                QFile modalias(sys.filePath(adapter) + QStringLiteral("/device/modalias"));
-                if (!modalias.open(QIODevice::ReadOnly | QIODevice::Text))
-                    continue;
-                if (AppleController::modaliasIsApple(QString::fromLatin1(modalias.readAll())))
-                    return true;
-            }
-            return false;
-        }();
-        return affected;
-    }
-
+    // Discovery stays off for the whole time the control link is up, whatever controller this box has.
     void stopBleScanWhileConnected()
     {
-        // Everywhere else keeps discovery running, so case and lid battery stay live while connected.
-        if (!bluetoothControllerIsApple() || !areAirpodsConnected() || !m_bleManager->isScanning())
+        if (!areAirpodsConnected() || !m_bleManager->isScanning())
             return;
 
         LOG_INFO("Stopping BLE scan while AirPods control link is connected");
@@ -1355,7 +1335,6 @@ private slots:
             {
                 mediaController->setConnectedDeviceMacAddress(m_deviceInfo->bluetoothAddress().replace(":", "_"));
             }
-            // Only on the affected controller, where onDeviceDisconnected restarts it.
             stopBleScanWhileConnected();
             emit airPodsStatusChanged();
         }
@@ -1606,9 +1585,8 @@ public:
         connectToPhone();
 
         m_deviceInfo->loadFromSettings(*m_settings);
-        // Nothing is scanning yet, so the affected controller is the only reason not to start.
-        if (!(areAirpodsConnected() && bluetoothControllerIsApple()))
-            m_bleManager->startScan();
+        // Unreachable with the pods already connected: the constructor returns before this.
+        m_bleManager->startScan();
     }
 
     // Null engine is the headless run, where there is no window to open and nothing to say about it.
