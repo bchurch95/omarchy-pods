@@ -368,11 +368,13 @@ void MediaController::removeAudioOutputDevice() {
     return;
   }
 
+  // Ear detection fires on every packet, so without this the card is re-released every few seconds.
+  if (m_pulseAudio->getActiveCardProfile(m_deviceOutputName) == QStringLiteral("off")) {
+    return;
+  }
+
   LOG_INFO("Removing AirPods as audio output device");
-  // Disable AVRCP volume snap before the sink goes away. Empty
-  // sink-name argument disables the snap path inside
-  // PulseAudioController; safe to call even if it was never
-  // enabled (no-op in that case).
+  // An empty sink name disables the snap, and is safe when it was never enabled.
   m_pulseAudio->enableVolumeSnap(QString(), 5);
   if (!m_pulseAudio->setCardProfile(m_deviceOutputName, "off")) {
     LOG_ERROR("Failed to remove AirPods as audio output device");
