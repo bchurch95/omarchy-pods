@@ -28,6 +28,21 @@ private slots:
         QVERIFY(!ControlReconnect::hasAttemptRemaining(0, 0));
     }
 
+    void watchdogStaysSilentUnlessBluezStillHoldsTheDevice()
+    {
+        // Pods merely away: BlueZ said not connected, so the ladder must not be restarted every tick.
+        QVERIFY(!ControlReconnect::shouldRetryFromWatchdog(false, false, false, true, false));
+
+        // Issue 19: control socket dead while BlueZ still reports the device connected.
+        QVERIFY(ControlReconnect::shouldRetryFromWatchdog(false, false, false, true, true));
+
+        // Every other guard still vetoes on its own.
+        QVERIFY(!ControlReconnect::shouldRetryFromWatchdog(true, false, false, true, true));
+        QVERIFY(!ControlReconnect::shouldRetryFromWatchdog(false, true, false, true, true));
+        QVERIFY(!ControlReconnect::shouldRetryFromWatchdog(false, false, true, true, true));
+        QVERIFY(!ControlReconnect::shouldRetryFromWatchdog(false, false, false, false, true));
+    }
+
     void tracksRecoveryLifecycle()
     {
         ControlReconnect::Session session;
