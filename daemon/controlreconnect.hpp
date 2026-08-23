@@ -25,6 +25,18 @@ inline constexpr int firstDelayMs = 750;
 // Ten retries on the ladder above is roughly two minutes, longer than any profile rebuild measured here.
 inline constexpr int connectedAttemptLimit = 10;
 
+// BlueZ can settle into Device1::Connected without emitting another transition, so an exhausted session needs a poll to notice.
+inline constexpr int watchdogIntervalMs = 30000;
+
+// The watchdog is only for a control link that died while BlueZ kept the device; every other state must stay silent.
+inline bool shouldRetryFromWatchdog(bool controlSocketConnected, bool recoveryActive,
+                                    bool suspending, bool haveAddress,
+                                    bool bluezReportedConnected)
+{
+    return !controlSocketConnected && !recoveryActive && !suspending
+           && haveAddress && bluezReportedConnected;
+}
+
 inline int delayMs(int attempt, int jitterMs)
 {
     const int boundedAttempt = std::clamp(attempt, 1, maxDoublings);

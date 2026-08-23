@@ -124,6 +124,13 @@ public:
         connect(m_controlReconnectTimer, &QTimer::timeout,
                 this, &AirPodsTrayApp::attemptControlReconnect);
 
+        // The bounded retries can exhaust while BlueZ still holds the device, and nothing else would fire again.
+        m_controlWatchdogTimer = new QTimer(this);
+        m_controlWatchdogTimer->setInterval(ControlReconnect::watchdogIntervalMs);
+        connect(m_controlWatchdogTimer, &QTimer::timeout,
+                this, &AirPodsTrayApp::checkControlLinkWatchdog);
+        m_controlWatchdogTimer->start();
+
         connect(m_bleManager, &BleManager::deviceFound, this, &AirPodsTrayApp::bleDeviceFound);
         connect(m_deviceInfo->getBattery(), &Battery::primaryChanged, this, &AirPodsTrayApp::primaryChanged);
         connect(m_systemSleepMonitor, &SystemSleepMonitor::systemGoingToSleep, this, &AirPodsTrayApp::onSystemGoingToSleep);
@@ -923,6 +930,21 @@ private slots:
         }
     }
 
+    // Gated on the last probe answer, so pods that are merely away cannot restart the ladder every tick.
+    void checkControlLinkWatchdog()
+    {
+        if (!ControlReconnect::shouldRetryFromWatchdog(
+                areAirpodsConnected(), m_controlRecovery.isActive(), m_isSuspending,
+                !m_lastAirPodsAddress.isEmpty(), m_bluezReportedConnected)) {
+            return;
+        }
+
+        LOG_INFO("Control link watchdog: last BlueZ probe said connected, retrying "
+                 << m_lastAirPodsAddress);
+        scheduleControlReconnect(m_lastAirPodsAddress, m_lastAirPodsName,
+                                 QStringLiteral("watchdog recheck"));
+    }
+
     void attemptControlReconnect()
     {
         if (m_controlRecovery.state() != ControlReconnect::State::Waiting) {
@@ -953,6 +975,7 @@ private slots:
             return;
         }
 
+        m_bluezReportedConnected = connected;
         if (connected) {
             ++m_reconnectAttemptsTotal;
             LOG_INFO("Reconnecting AirPods control link (attempt total="
@@ -1625,6 +1648,10 @@ private:
     TrayIconManager *trayManager = nullptr;
     BluetoothMonitor *monitor;
     QTimer *m_controlReconnectTimer = nullptr;
+    // Safety net behind m_controlReconnectTimer's bounded retries; see checkControlLinkWatchdog().
+    QTimer *m_controlWatchdogTimer = nullptr;
+    // Last answer BlueZ gave about this device, which is what separates a dead link from absent pods.
+    bool m_bluezReportedConnected = false;
     QSettings *m_settings;
     AutoStartManager *m_autoStartManager;
     int m_retryAttempts = 3;
