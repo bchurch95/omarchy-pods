@@ -1009,6 +1009,13 @@ private slots:
             m_bleManager->stopScan();
         }
         LOG_INFO("AirPods control link recovered");
+
+        // onDeviceDisconnected cancelled any in-flight activation, and a recovering connect skips the usual retry.
+        if (!m_lastAirPodsAddress.isEmpty()) {
+            QString formattedAddress = m_lastAirPodsAddress;
+            formattedAddress.replace(":", "_");
+            mediaController->activateA2dpProfileWithRetry(formattedAddress);
+        }
     }
 
     void bluezDeviceDisconnected(const QString &address, const QString &name)
