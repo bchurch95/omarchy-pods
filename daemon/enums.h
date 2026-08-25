@@ -172,6 +172,7 @@ namespace AirpodsTrayApp
                 case AirPodsModel::AirPodsMaxLightning:
                 case AirPodsModel::AirPodsMaxUSBC:
                 case AirPodsModel::AirPodsMax2:
+                case AirPodsModel::PowerbeatsPro:
                 // Fail open: a model this map has not learned yet keeps the modes it had before.
                 case AirPodsModel::Unknown:
                     return true;
@@ -211,6 +212,7 @@ namespace AirpodsTrayApp
                 case AirPodsModel::AirPodsPro2Lightning:
                 case AirPodsModel::AirPodsPro2USBC:
                 case AirPodsModel::AirPodsPro3:
+                case AirPodsModel::PowerbeatsPro:
                     return true;
                 default:
                     return false;

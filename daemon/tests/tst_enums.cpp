@@ -202,7 +202,7 @@ private slots:
         QTest::newRow("AirPodsMaxL")     << int(AirPodsModel::AirPodsMaxLightning)  << true  << false << false << false;
         QTest::newRow("AirPodsMaxUSBC")  << int(AirPodsModel::AirPodsMaxUSBC)       << true  << false << false << false;
         QTest::newRow("AirPodsMax2")     << int(AirPodsModel::AirPodsMax2)          << true  << true  << true  << false;
-        QTest::newRow("PowerbeatsPro")   << int(AirPodsModel::PowerbeatsPro)        << false << false << false << false;
+        QTest::newRow("PowerbeatsPro")   << int(AirPodsModel::PowerbeatsPro)        << true  << false << false << true;
         // Unknown fails open on modes so an unmapped model keeps what it had, and gains nothing else.
         QTest::newRow("Unknown")         << int(AirPodsModel::Unknown)              << true  << false << false << false;
     }
