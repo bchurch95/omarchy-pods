@@ -371,6 +371,22 @@ public slots:
 
     void setNoiseControlMode(NoiseControlMode mode)
     {
+        if (!m_deviceInfo) {
+            LOG_WARN("setNoiseControlMode: m_deviceInfo not ready");
+            return;
+        }
+        if (!supportsNoiseControl(m_deviceInfo->model())) {
+            LOG_WARN("Device does not support noise control, skipping packet");
+            return;
+        }
+        if (mode == NoiseControlMode::Adaptive && !supportsAdaptiveAudio(m_deviceInfo->model())) {
+            LOG_WARN("Device does not support Adaptive mode, skipping packet");
+            return;
+        }
+        if (mode == NoiseControlMode::Off && !supportsNoiseOff(m_deviceInfo->model())) {
+            LOG_WARN("Device does not support Off mode, skipping packet");
+            return;
+        }
         if (m_deviceInfo->noiseControlMode() == mode)
         {
             LOG_DEBUG("Noise control mode is already set to: " << static_cast<int>(mode));
@@ -465,8 +481,20 @@ public slots:
             LOG_ERROR("Cannot cycle noise control mode: device info not ready");
             return;
         }
+        if (!supportsNoiseControl(m_deviceInfo->model()))
+        {
+            LOG_DEBUG("Cannot cycle noise control mode: device does not support noise control");
+            return;
+        }
         const int current = static_cast<int>(m_deviceInfo->noiseControlMode());
-        const int next = (current + 1) % (static_cast<int>(NoiseControlMode::Adaptive) + 1);
+        int next = current;
+        for (int i = 0; i < 4; ++i) {
+            next = (next + 1) % 4;
+            auto mode = static_cast<NoiseControlMode>(next);
+            if (mode == NoiseControlMode::Off && !supportsNoiseOff(m_deviceInfo->model())) continue;
+            if (mode == NoiseControlMode::Adaptive && !supportsAdaptiveAudio(m_deviceInfo->model())) continue;
+            break;
+        }
         setNoiseControlModeInt(next);
     }
 
