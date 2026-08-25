@@ -1581,15 +1581,17 @@ private slots:
 public:
     void handleMediaStateChange(MediaController::MediaState state) {
         if (state == MediaController::MediaState::Playing) {
-            LOG_INFO("Media started playing on Linux: sending Apple Handoff CLAIM");
-            writePacketToSocket(AirPodsPackets::OwnsConnection::CLAIM, "Sent Apple Handoff CLAIM packet: ");
+            // Only send CLAIM packet if AirPods are not already the active output device
+            if (mediaController && !mediaController->isActiveOutputDeviceAirPods()) {
+                LOG_INFO("Media started playing on Linux and AirPods not active: sending Apple Handoff CLAIM");
+                writePacketToSocket(AirPodsPackets::OwnsConnection::CLAIM, "Sent Apple Handoff CLAIM packet: ");
+            }
             if (CrossDevice.isEnabled) {
                 sendDisconnectRequestToAndroid();
                 connectToAirPods(true);
             }
         } else if (state == MediaController::MediaState::Paused || state == MediaController::MediaState::Stopped) {
-            LOG_INFO("Media stopped playing on Linux: sending Apple Handoff RELEASE");
-            writePacketToSocket(AirPodsPackets::OwnsConnection::RELEASE, "Sent Apple Handoff RELEASE packet: ");
+            LOG_DEBUG("Media playback paused/stopped on Linux");
         }
     }
 
