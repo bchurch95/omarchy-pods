@@ -422,9 +422,32 @@ public slots:
         {
             const auto fire = s.latch->evaluate(s.level, s.available, s.charging);
             if (fire) {
+                QString name;
+                if (m_deviceInfo && !m_deviceInfo->deviceName().isEmpty()) {
+                    name = m_deviceInfo->deviceName();
+                } else if (m_deviceInfo && m_deviceInfo->model() != AirPodsModel::Unknown) {
+                    name = modelDisplayName(m_deviceInfo->model());
+                } else {
+                    name = tr("AirPods");
+                }
+                QString unitType;
+                if (m_deviceInfo && m_deviceInfo->model() == AirPodsModel::PowerbeatsPro) {
+                    unitType = (s.label == QLatin1String("Case")) ? tr("Case") : tr("Earbud");
+                } else if (m_deviceInfo && isModelHeadset(m_deviceInfo->model())) {
+                    unitType = tr("Headphone");
+                } else {
+                    unitType = (s.label == QLatin1String("Case")) ? tr("Case") : tr("AirPod");
+                }
+                QString labelText;
+                if (s.label == QLatin1String("Case")) {
+                    labelText = tr("%1 Case Low Battery").arg(name);
+                } else {
+                    labelText = tr("%1 %2 Low Battery").arg(QString::fromLatin1(s.label), unitType);
+                }
                 m_notifier->notify(
-                    tr("%1 AirPod Low Battery").arg(QString::fromLatin1(s.label)),
-                    tr("%1% remaining").arg(*fire));
+                    labelText,
+                    tr("%1% remaining").arg(*fire),
+                    name);
             }
         }
     }
@@ -867,9 +890,18 @@ private slots:
         // doesn't want to see "AirPods Disconnected" every time they close
         // the lid. Tray icon still resets so visual state is accurate.
         if (!m_isSuspending) {
+            QString name = m_lastAirPodsName;
+            if (name.isEmpty() && m_deviceInfo && !m_deviceInfo->deviceName().isEmpty()) {
+                name = m_deviceInfo->deviceName();
+            } else if (name.isEmpty() && m_deviceInfo && m_deviceInfo->model() != AirPodsModel::Unknown) {
+                name = modelDisplayName(m_deviceInfo->model());
+            } else if (name.isEmpty()) {
+                name = tr("AirPods");
+            }
             m_notifier->notify(
-                tr("AirPods Disconnected"),
-                tr("Your AirPods have been disconnected"));
+                tr("%1 Disconnected").arg(name),
+                tr("Your %1 has been disconnected").arg(name),
+                name);
         }
         if (trayManager) {
             trayManager->resetTrayIcon();
