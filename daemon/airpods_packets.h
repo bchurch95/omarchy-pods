@@ -238,6 +238,13 @@ namespace AirPodsPackets
         }
     }
 
+    // Apple Handoff - OWNS_CONNECTION
+    namespace OwnsConnection
+    {
+        static const QByteArray CLAIM = ControlCommand::createCommand(0x06, 0x01);
+        static const QByteArray RELEASE = ControlCommand::createCommand(0x06, 0x00);
+    }
+
     // Parsing Headers
     namespace Parse
     {
@@ -246,6 +253,7 @@ namespace AirPodsPackets
         static const QByteArray METADATA = QByteArray::fromHex("040004001d");
         static const QByteArray HANDSHAKE_ACK = QByteArray::fromHex("01000400");
         static const QByteArray FEATURES_ACK = QByteArray::fromHex("040004002b00"); // Note: Only tested with airpods pro 2
+        static const QByteArray AUDIO_SOURCE = QByteArray::fromHex("040004000e");
     }
 }
 

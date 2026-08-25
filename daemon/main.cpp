@@ -1580,13 +1580,16 @@ private slots:
 
 public:
     void handleMediaStateChange(MediaController::MediaState state) {
-        // Grabbing the pods off whatever holds them is the cross-device feature, not a
-        // side effect of local playback: without this gate the box fights Apple's own
-        // automatic switching and the pods flap between here and the other device.
-        if (state == MediaController::MediaState::Playing && CrossDevice.isEnabled) {
-            LOG_INFO("Media started playing, taking over audio for cross-device");
-            sendDisconnectRequestToAndroid();
-            connectToAirPods(true);
+        if (state == MediaController::MediaState::Playing) {
+            LOG_INFO("Media started playing on Linux: sending Apple Handoff CLAIM");
+            writePacketToSocket(AirPodsPackets::OwnsConnection::CLAIM, "Sent Apple Handoff CLAIM packet: ");
+            if (CrossDevice.isEnabled) {
+                sendDisconnectRequestToAndroid();
+                connectToAirPods(true);
+            }
+        } else if (state == MediaController::MediaState::Paused || state == MediaController::MediaState::Stopped) {
+            LOG_INFO("Media stopped playing on Linux: sending Apple Handoff RELEASE");
+            writePacketToSocket(AirPodsPackets::OwnsConnection::RELEASE, "Sent Apple Handoff RELEASE packet: ");
         }
     }
 
