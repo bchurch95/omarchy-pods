@@ -20,9 +20,9 @@ StateDirectoryMode=0700
 ConfigurationDirectory=AirPodsTrayApp
 ConfigurationDirectoryMode=0700
 ProtectSystem=strict
-# /home is its own btrfs subvolume mount here, which strict alone leaves writable.
+# strict leaves /home, /root and /run/user to ProtectHome, so home needs this line.
 ProtectHome=read-only
-# The control socket goes next to the session bus and the PipeWire sockets in the runtime directory.
+# ProtectHome takes /run/user too, and the control socket has to live there.
 ReadWritePaths=%t
 PrivateTmp=yes
 NoNewPrivileges=yes
