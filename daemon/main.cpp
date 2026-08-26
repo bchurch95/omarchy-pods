@@ -1791,6 +1791,8 @@ public:
             LOG_ERROR("Cannot open state file: " << file.fileName());
             return;
         }
+        // The mode goes on the open temporary the commit renames into place, never on the final path.
+        file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
         file.write(line);
         if (file.commit()) {
             m_lastState = line;
@@ -2026,6 +2028,8 @@ int main(int argc, char *argv[]) {
 
     QLocalServer server;
     QLocalServer::removeServer(ipcPath);
+    // Qt binds the socket at 0777 minus the umask unless told otherwise, and listen() is what applies this.
+    server.setSocketOptions(QLocalServer::UserAccessOption);
 
     if (!server.listen(ipcPath))
     {

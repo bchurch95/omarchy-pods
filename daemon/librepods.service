@@ -12,5 +12,31 @@ ExecStart=%h/.local/bin/librepods --headless
 Restart=on-failure
 RestartSec=5
 
+# The status file carries the AirPods identity, so nothing the daemon creates is world-readable.
+UMask=0077
+# systemd creates both at 0700, which is also what makes them writable under ProtectSystem=strict.
+StateDirectory=librepods
+StateDirectoryMode=0700
+ConfigurationDirectory=AirPodsTrayApp
+ConfigurationDirectoryMode=0700
+ProtectSystem=strict
+# The control socket goes next to the session bus and the PipeWire sockets in the runtime directory.
+ReadWritePaths=%t
+PrivateTmp=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+# BlueZ takes AF_BLUETOOTH, the HCI address-type probe takes AF_NETLINK, everything else is a local socket.
+RestrictAddressFamilies=AF_UNIX AF_BLUETOOTH AF_NETLINK
+
 [Install]
 WantedBy=graphical-session.target
