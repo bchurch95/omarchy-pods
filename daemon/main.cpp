@@ -1792,7 +1792,10 @@ public:
             return;
         }
         // The mode goes on the open temporary the commit renames into place, never on the final path.
-        file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+        if (!file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner)) {
+            LOG_ERROR("Cannot restrict the state file mode, refusing to publish: " << file.fileName());
+            return;
+        }
         file.write(line);
         if (file.commit()) {
             m_lastState = line;
