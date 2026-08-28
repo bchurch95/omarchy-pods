@@ -187,7 +187,13 @@ bool PulseAudioController::setDefaultSink(const QString &sinkName)
     if (!m_initialized || sinkName.isEmpty()) return false;
 
     pa_threaded_mainloop_lock(m_mainloop);
-    pa_operation *op = pa_context_set_default_sink(m_context, sinkName.toUtf8().constData(), nullptr, nullptr);
+
+    auto successCallback = [](pa_context *c, int success, void *userdata) {
+        pa_threaded_mainloop *mainloop = static_cast<pa_threaded_mainloop*>(userdata);
+        pa_threaded_mainloop_signal(mainloop, 0);
+    };
+
+    pa_operation *op = pa_context_set_default_sink(m_context, sinkName.toUtf8().constData(), successCallback, m_mainloop);
     bool ok = waitForOperation(op);
     if (op) pa_operation_unref(op);
     pa_threaded_mainloop_unlock(m_mainloop);

@@ -23,6 +23,7 @@
 #include <QLoggingCategory>
 #include <QThread>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QTranslator>
@@ -1486,7 +1487,10 @@ private slots:
 
                 if (otherDeviceHasAudio)
                 {
-                    if (mediaController && mediaController->getCurrentMediaState() == MediaController::MediaState::Playing)
+                    // If we just initiated a CLAIM recently (within 2.5s), the pods are in transition; don't pause!
+                    bool recentlyClaimed = (m_lastClaimTimer.isValid() && m_lastClaimTimer.elapsed() < 2500);
+
+                    if (!recentlyClaimed && mediaController && mediaController->getCurrentMediaState() == MediaController::MediaState::Playing)
                     {
                         LOG_INFO("AirPods audio interrupted by another device (" << typeStr << "): pausing Linux playback");
                         mediaController->pause();
@@ -1497,8 +1501,18 @@ private slots:
                 {
                     if (m_interruptedByOtherDevice)
                     {
-                        LOG_INFO("Other device released AirPods audio");
+                        LOG_INFO("Other device released AirPods audio: reclaiming and resuming playback");
                         m_interruptedByOtherDevice = false;
+                        if (socket && socket->isOpen()) {
+                            m_lastClaimTimer.restart();
+                            writePacketToSocket(AirPodsPackets::OwnsConnection::CLAIM, "Sent Apple Handoff CLAIM packet on release: ");
+                            QString addr = getAirPodsAddress();
+                            if (!addr.isEmpty()) {
+                                QString sinkMac = addr;
+                                mediaController->activateA2dpProfileWithRetry(sinkMac.replace(":", "_"));
+                            }
+                            mediaController->play();
+                        }
                     }
                 }
             }
@@ -1670,6 +1684,8 @@ private slots:
 public:
     void handleMediaStateChange(MediaController::MediaState state) {
         if (state == MediaController::MediaState::Playing) {
+            m_lastClaimTimer.restart();
+            m_interruptedByOtherDevice = false;
             QString addr = getAirPodsAddress();
             if (socket && socket->isOpen()) {
                 LOG_INFO("Media started playing on Linux: sending Apple Handoff CLAIM");
@@ -1819,6 +1835,7 @@ private:
     QString m_lastAirPodsAddress;
     QString m_lastAirPodsName;
     bool m_interruptedByOtherDevice = false;
+    QElapsedTimer m_lastClaimTimer;
 
     // Reliability counters — process-lifetime totals, logged on quit.
     // Exposed to QML readers via the public getters below.
