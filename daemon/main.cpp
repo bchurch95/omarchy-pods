@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <memory>
 #include <unistd.h>
+#include <algorithm>
 #include <QBluetoothLocalDevice>
 #include <QBluetoothSocket>
 #include <QQuickWindow>
@@ -292,6 +293,14 @@ private:
             }
         }
         return QString();
+    }
+
+    QByteArray getLocalReversedMac() {
+        QBluetoothLocalDevice localDevice;
+        QBluetoothAddress localAddr = localDevice.address();
+        QByteArray mac = QByteArray::fromHex(localAddr.toString().replace(":", "").toLatin1());
+        std::reverse(mac.begin(), mac.end());
+        return mac;
     }
 
 public slots:
@@ -901,6 +910,10 @@ private slots:
         LOG_INFO("Device disconnected: " << address.toString());
         // A retry still in flight would reactivate a profile for the device that just went away.
         mediaController->cancelPendingA2dpActivation();
+        if (mediaController && mediaController->getCurrentMediaState() == MediaController::MediaState::Playing) {
+            LOG_INFO("AirPods disconnected while playing: pausing Linux media");
+            mediaController->pause();
+        }
         if (socket)
         {
             LOG_WARN("Socket is still open, closing it");
@@ -1456,6 +1469,40 @@ private slots:
                 LOG_DEBUG("One Bud ANC mode received: " << m_deviceInfo->oneBudANCMode());
             }
         }
+        // Audio Source Notification (Apple Handoff active source)
+        else if (data.startsWith(AirPodsPackets::Parse::AUDIO_SOURCE))
+        {
+            auto info = AirPodsPackets::AudioSource::parse(data);
+            if (info.isValid)
+            {
+                QByteArray localMac = getLocalReversedMac();
+                bool otherDeviceHasAudio = (info.type != AirPodsPackets::AudioSource::NONE) &&
+                                          (info.deviceMac != localMac);
+
+                QString typeStr = (info.type == AirPodsPackets::AudioSource::NONE) ? "NONE" :
+                                 (info.type == AirPodsPackets::AudioSource::CALL) ? "CALL" : "MEDIA";
+                LOG_INFO("Audio source update: device=" << info.deviceMac.toHex() << " type=" << typeStr
+                         << " otherDeviceHasAudio=" << otherDeviceHasAudio);
+
+                if (otherDeviceHasAudio)
+                {
+                    if (mediaController && mediaController->getCurrentMediaState() == MediaController::MediaState::Playing)
+                    {
+                        LOG_INFO("AirPods audio interrupted by another device (" << typeStr << "): pausing Linux playback");
+                        mediaController->pause();
+                        m_interruptedByOtherDevice = true;
+                    }
+                }
+                else if (info.type == AirPodsPackets::AudioSource::NONE)
+                {
+                    if (m_interruptedByOtherDevice)
+                    {
+                        LOG_INFO("Other device released AirPods audio");
+                        m_interruptedByOtherDevice = false;
+                    }
+                }
+            }
+        }
         else
         {
             LOG_DEBUG("Unrecognized packet format: " << data.toHex());
@@ -1773,6 +1820,7 @@ private:
     bool m_disconnectFinalized = false;
     QString m_lastAirPodsAddress;
     QString m_lastAirPodsName;
+    bool m_interruptedByOtherDevice = false;
 
     // Reliability counters — process-lifetime totals, logged on quit.
     // Exposed to QML readers via the public getters below.
