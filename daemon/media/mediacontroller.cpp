@@ -432,6 +432,11 @@ QStringList MediaController::getPlayingMediaPlayers()
   return playingServices;
 }
 
+void MediaController::clearPausedServices()
+{
+  pausedByAppServices.clear();
+}
+
 void MediaController::play()
 {
   if (pausedByAppServices.isEmpty())
@@ -458,6 +463,11 @@ void MediaController::play()
     }
 
     QDBusReply<void> reply = playerInterface.call("Play");
+    if (!reply.isValid())
+    {
+      reply = playerInterface.call("PlayPause");
+    }
+
     if (reply.isValid())
     {
       LOG_INFO("Resumed playback for: " << service);

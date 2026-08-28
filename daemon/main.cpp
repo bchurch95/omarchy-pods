@@ -1477,42 +1477,69 @@ private slots:
             if (info.isValid)
             {
                 QByteArray localMac = getLocalReversedMac();
-                bool otherDeviceHasAudio = (info.type != AirPodsPackets::AudioSource::NONE) &&
-                                          (info.deviceMac != localMac);
+                bool isOtherDevice = (info.deviceMac != localMac);
 
                 QString typeStr = (info.type == AirPodsPackets::AudioSource::NONE) ? "NONE" :
                                  (info.type == AirPodsPackets::AudioSource::CALL) ? "CALL" : "MEDIA";
                 LOG_INFO("Audio source update: device=" << info.deviceMac.toHex() << " type=" << typeStr
-                         << " otherDeviceHasAudio=" << otherDeviceHasAudio);
+                         << " otherDevice=" << isOtherDevice);
 
-                if (otherDeviceHasAudio)
+                if (isOtherDevice)
                 {
-                    // If we just initiated a CLAIM recently (within 2.5s), the pods are in transition; don't pause!
-                    bool recentlyClaimed = (m_lastClaimTimer.isValid() && m_lastClaimTimer.elapsed() < 2500);
+                    bool isNewInterruption = false;
 
-                    if (!recentlyClaimed && mediaController && mediaController->getCurrentMediaState() == MediaController::MediaState::Playing)
+                    if (info.type == AirPodsPackets::AudioSource::CALL)
                     {
-                        LOG_INFO("AirPods audio interrupted by another device (" << typeStr << "): pausing Linux playback");
-                        mediaController->pause();
-                        m_interruptedByOtherDevice = true;
+                        // Phone call on another device ALWAYS interrupts Linux media
+                        isNewInterruption = true;
+                    }
+                    else if (info.type == AirPodsPackets::AudioSource::MEDIA)
+                    {
+                        // Another device newly started playback (NONE -> MEDIA transition)
+                        // and we didn't just initiate a claim ourselves in the last 4 seconds
+                        bool recentlyClaimed = (m_lastClaimTimer.isValid() && m_lastClaimTimer.elapsed() < 4000);
+                        if (!recentlyClaimed && m_lastOtherDeviceSourceType == AirPodsPackets::AudioSource::NONE)
+                        {
+                            isNewInterruption = true;
+                        }
+                    }
+
+                    m_lastOtherDeviceSourceType = info.type;
+
+                    if (isNewInterruption)
+                    {
+                        if (mediaController && mediaController->getCurrentMediaState() == MediaController::MediaState::Playing)
+                        {
+                            LOG_INFO("AirPods audio interrupted by other device (" << typeStr << "): pausing Linux playback");
+                            mediaController->pause();
+                            m_interruptedByOtherDevice = true;
+                        }
+                    }
+                    else if (info.type == AirPodsPackets::AudioSource::NONE)
+                    {
+                        if (m_interruptedByOtherDevice)
+                        {
+                            LOG_INFO("Other device released AirPods audio: reclaiming and resuming playback");
+                            m_interruptedByOtherDevice = false;
+                            if (socket && socket->isOpen()) {
+                                m_lastClaimTimer.restart();
+                                writePacketToSocket(AirPodsPackets::OwnsConnection::CLAIM, "Sent Apple Handoff CLAIM packet on release: ");
+                                QString addr = getAirPodsAddress();
+                                if (!addr.isEmpty()) {
+                                    QString sinkMac = addr;
+                                    mediaController->activateA2dpProfileWithRetry(sinkMac.replace(":", "_"));
+                                }
+                                mediaController->play();
+                            }
+                        }
                     }
                 }
-                else if (info.type == AirPodsPackets::AudioSource::NONE)
+                else
                 {
-                    if (m_interruptedByOtherDevice)
+                    if (info.type == AirPodsPackets::AudioSource::MEDIA)
                     {
-                        LOG_INFO("Other device released AirPods audio: reclaiming and resuming playback");
+                        m_lastOtherDeviceSourceType = AirPodsPackets::AudioSource::NONE;
                         m_interruptedByOtherDevice = false;
-                        if (socket && socket->isOpen()) {
-                            m_lastClaimTimer.restart();
-                            writePacketToSocket(AirPodsPackets::OwnsConnection::CLAIM, "Sent Apple Handoff CLAIM packet on release: ");
-                            QString addr = getAirPodsAddress();
-                            if (!addr.isEmpty()) {
-                                QString sinkMac = addr;
-                                mediaController->activateA2dpProfileWithRetry(sinkMac.replace(":", "_"));
-                            }
-                            mediaController->play();
-                        }
                     }
                 }
             }
@@ -1686,11 +1713,14 @@ public:
         if (state == MediaController::MediaState::Playing) {
             m_lastClaimTimer.restart();
             m_interruptedByOtherDevice = false;
+            if (mediaController) {
+                mediaController->clearPausedServices();
+            }
             QString addr = getAirPodsAddress();
             if (socket && socket->isOpen()) {
                 LOG_INFO("Media started playing on Linux: sending Apple Handoff CLAIM");
                 writePacketToSocket(AirPodsPackets::OwnsConnection::CLAIM, "Sent Apple Handoff CLAIM packet: ");
-                if (!addr.isEmpty()) {
+                if (!addr.isEmpty() && mediaController && !mediaController->isActiveOutputDeviceAirPods()) {
                     QString sinkMac = addr;
                     mediaController->activateA2dpProfileWithRetry(sinkMac.replace(":", "_"));
                 }
@@ -1836,6 +1866,7 @@ private:
     QString m_lastAirPodsName;
     bool m_interruptedByOtherDevice = false;
     QElapsedTimer m_lastClaimTimer;
+    AirPodsPackets::AudioSource::Type m_lastOtherDeviceSourceType = AirPodsPackets::AudioSource::NONE;
 
     // Reliability counters — process-lifetime totals, logged on quit.
     // Exposed to QML readers via the public getters below.
