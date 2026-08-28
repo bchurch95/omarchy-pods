@@ -208,3 +208,33 @@ void BluetoothMonitor::onPropertiesChanged(const QDBusMessage &message)
         LOG_DEBUG("AirPods device disconnected:" << macAddress << " Name:" << deviceName);
     }
 }
+
+QString BluetoothMonitor::findPairedAirPodsAddress()
+{
+    if (!m_dbus.isConnected()) return QString();
+
+    QDBusMessage request = QDBusMessage::createMethodCall(
+        "org.bluez", "/", "org.freedesktop.DBus.ObjectManager", "GetManagedObjects");
+    QDBusMessage reply = m_dbus.call(request, QDBus::Block, sweepTimeoutMs);
+    if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().isEmpty()) return QString();
+
+    QVariant firstArg = reply.arguments().constFirst();
+    QDBusArgument arg = firstArg.value<QDBusArgument>();
+    ManagedObjectList managedObjects;
+    arg >> managedObjects;
+
+    for (auto it = managedObjects.constBegin(); it != managedObjects.constEnd(); ++it)
+    {
+        const QMap<QString, QVariantMap> &interfaces = it.value();
+        if (!interfaces.contains("org.bluez.Device1")) continue;
+
+        const QVariantMap &deviceProps = interfaces.value("org.bluez.Device1");
+        if (!deviceProps.contains("UUIDs") || !deviceProps.contains("Address")) continue;
+
+        const QStringList uuids = deviceProps["UUIDs"].toStringList();
+        if (uuids.contains("74ec2172-0bad-4d01-8f77-997b2be0722a")) {
+            return deviceProps["Address"].toString();
+        }
+    }
+    return QString();
+}

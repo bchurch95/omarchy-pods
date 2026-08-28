@@ -17,6 +17,7 @@ public:
 
     bool checkAlreadyConnectedDevices();
     void probeDeviceConnected(const QString &macAddress, quint64 requestId);
+    QString findPairedAirPodsAddress();
 
 signals:
     void deviceConnected(const QString &macAddress, const QString &deviceName);

@@ -271,6 +271,29 @@ private:
         LOG_INFO("Disconnecting device at " << devicePath);
     }
 
+    QString getAirPodsAddress() {
+        if (m_deviceInfo && !m_deviceInfo->bluetoothAddress().isEmpty()) {
+            return m_deviceInfo->bluetoothAddress();
+        }
+        if (!m_lastAirPodsAddress.isEmpty()) {
+            return m_lastAirPodsAddress;
+        }
+        if (monitor) {
+            QString pairedAddr = monitor->findPairedAirPodsAddress();
+            if (!pairedAddr.isEmpty()) {
+                m_lastAirPodsAddress = pairedAddr;
+                if (m_deviceInfo) {
+                    m_deviceInfo->setBluetoothAddress(pairedAddr);
+                    if (m_settings) {
+                        m_deviceInfo->saveToSettings(*m_settings);
+                    }
+                }
+                return pairedAddr;
+            }
+        }
+        return QString();
+    }
+
 public slots:
     // Apple-style Disconnect / Connect controls. Wrap `bluetoothctl`
     // with the saved BD_ADDR. Async QProcess + deleteLater so the Qt
@@ -279,11 +302,11 @@ public slots:
     // done). The connect path also triggers the existing
     // bluezDeviceConnected handler, which re-runs the AAP handshake.
     void disconnectAirPods() {
-        if (!m_deviceInfo || m_deviceInfo->bluetoothAddress().isEmpty()) {
+        const QString addr = getAirPodsAddress();
+        if (addr.isEmpty()) {
             LOG_WARN("disconnectAirPods: no current address to disconnect");
             return;
         }
-        const QString addr = m_deviceInfo->bluetoothAddress();
         LOG_INFO("disconnectAirPods: " << addr);
         ++m_disconnectCallsTotal;
         auto *proc = new QProcess(this);
@@ -306,11 +329,11 @@ public slots:
     }
 
     void connectAirPods() {
-        if (!m_deviceInfo || m_deviceInfo->bluetoothAddress().isEmpty()) {
+        const QString addr = getAirPodsAddress();
+        if (addr.isEmpty()) {
             LOG_WARN("connectAirPods: no current address to connect");
             return;
         }
-        const QString addr = m_deviceInfo->bluetoothAddress();
         LOG_INFO("connectAirPods: " << addr);
         ++m_connectCallsTotal;
         auto *proc = new QProcess(this);
@@ -940,9 +963,18 @@ private slots:
     {
         if (!address.isEmpty()) {
             m_lastAirPodsAddress = address;
+            if (m_deviceInfo) {
+                m_deviceInfo->setBluetoothAddress(address);
+                if (m_settings) {
+                    m_deviceInfo->saveToSettings(*m_settings);
+                }
+            }
         }
         if (!name.isEmpty()) {
             m_lastAirPodsName = name;
+            if (m_deviceInfo) {
+                m_deviceInfo->setDeviceName(name);
+            }
         }
     }
 
@@ -1333,6 +1365,16 @@ private slots:
                     writePacketToSocket(AirPodsPackets::Connection::REQUEST_NOTIFICATIONS, "Request notifications packet written: ");
                 }
             });
+
+            if (mediaController && mediaController->getCurrentMediaState() == MediaController::MediaState::Playing) {
+                LOG_INFO("Media is playing on connect: sending Apple Handoff CLAIM");
+                writePacketToSocket(AirPodsPackets::OwnsConnection::CLAIM, "Sent Apple Handoff CLAIM packet: ");
+                QString addr = getAirPodsAddress();
+                if (!addr.isEmpty()) {
+                    QString sinkMac = addr;
+                    mediaController->activateA2dpProfileWithRetry(sinkMac.replace(":", "_"));
+                }
+            }
         }
         // Magic Cloud Keys Response
         else if (data.startsWith(AirPodsPackets::MagicPairing::MAGIC_CLOUD_KEYS_HEADER))
@@ -1581,10 +1623,19 @@ private slots:
 public:
     void handleMediaStateChange(MediaController::MediaState state) {
         if (state == MediaController::MediaState::Playing) {
-            // Only send CLAIM packet if AirPods are not already the active output device
-            if (mediaController && !mediaController->isActiveOutputDeviceAirPods()) {
-                LOG_INFO("Media started playing on Linux and AirPods not active: sending Apple Handoff CLAIM");
-                writePacketToSocket(AirPodsPackets::OwnsConnection::CLAIM, "Sent Apple Handoff CLAIM packet: ");
+            QString addr = getAirPodsAddress();
+            if (socket && socket->isOpen()) {
+                if (mediaController && !mediaController->isActiveOutputDeviceAirPods()) {
+                    LOG_INFO("Media started playing on Linux and AirPods not active: sending Apple Handoff CLAIM");
+                    writePacketToSocket(AirPodsPackets::OwnsConnection::CLAIM, "Sent Apple Handoff CLAIM packet: ");
+                    if (!addr.isEmpty()) {
+                        QString sinkMac = addr;
+                        mediaController->activateA2dpProfileWithRetry(sinkMac.replace(":", "_"));
+                    }
+                }
+            } else {
+                LOG_INFO("Media started playing on Linux and AirPods not connected: initiating handoff connection");
+                connectAirPods();
             }
             if (CrossDevice.isEnabled) {
                 sendDisconnectRequestToAndroid();
@@ -1592,6 +1643,9 @@ public:
             }
         } else if (state == MediaController::MediaState::Paused || state == MediaController::MediaState::Stopped) {
             LOG_DEBUG("Media playback paused/stopped on Linux");
+            if (socket && socket->isOpen()) {
+                writePacketToSocket(AirPodsPackets::OwnsConnection::RELEASE, "Sent Apple Handoff RELEASE packet: ");
+            }
         }
     }
 
@@ -1620,6 +1674,7 @@ public:
             return;
         }
 
+        QString addr = getAirPodsAddress();
         if (force) {
             LOG_INFO("Forcing connection to AirPods");
             // Async: don't block UI on bluetoothctl. Once it finishes, walk
@@ -1639,7 +1694,7 @@ public:
                             }
                         }
                     });
-            proc->start("bluetoothctl", QStringList() << "connect" << m_deviceInfo->bluetoothAddress());
+            proc->start("bluetoothctl", QStringList() << "connect" << addr);
             return;
         }
         QBluetoothLocalDevice localDevice;
@@ -1659,6 +1714,11 @@ public:
         connectToPhone();
 
         m_deviceInfo->loadFromSettings(*m_settings);
+        if (!m_deviceInfo->bluetoothAddress().isEmpty()) {
+            m_lastAirPodsAddress = m_deviceInfo->bluetoothAddress();
+        } else {
+            getAirPodsAddress();
+        }
         // Unreachable with the pods already connected: the constructor returns before this.
         m_bleManager->startScan();
     }
