@@ -285,9 +285,13 @@ bool MediaController::activateA2dpProfile() {
     LOG_INFO("Profile activated: " << preferredProfile);
   }
 
-  // AirPods stem swipes write 1/15 steps over AVRCP, so snap them onto the 5% grid.
-  QString sink = m_pulseAudio->getDefaultSink();
-  if (!sink.isEmpty() && sink.contains(connectedDeviceMacAddress)) {
+  // Ensure the AirPods sink is selected as the default sink in PulseAudio / PipeWire
+  QString sink = m_pulseAudio->getSinkForDevice(connectedDeviceMacAddress);
+  if (sink.isEmpty()) {
+    sink = m_pulseAudio->getDefaultSink();
+  }
+  if (!sink.isEmpty() && sink.contains(connectedDeviceMacAddress, Qt::CaseInsensitive)) {
+    m_pulseAudio->setDefaultSink(sink);
     m_pulseAudio->enableVolumeSnap(sink, 5);
   }
 

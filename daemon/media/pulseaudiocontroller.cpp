@@ -145,6 +145,56 @@ QString PulseAudioController::getDefaultSink()
     return data.sinkName;
 }
 
+QString PulseAudioController::getSinkForDevice(const QString &macAddress)
+{
+    if (!m_initialized || macAddress.isEmpty()) return QString();
+
+    struct CallbackData {
+        QString mac;
+        QString sinkName;
+        pa_threaded_mainloop *mainloop = nullptr;
+    } data;
+    data.mac = macAddress;
+    data.mainloop = m_mainloop;
+
+    auto callback = [](pa_context *c, const pa_sink_info *info, int eol, void *userdata) {
+        CallbackData *d = static_cast<CallbackData*>(userdata);
+        if (eol != 0) {
+            pa_threaded_mainloop_signal(d->mainloop, 0);
+            return;
+        }
+        if (info && info->name) {
+            QString name = QString::fromUtf8(info->name);
+            if (name.contains(d->mac, Qt::CaseInsensitive)) {
+                d->sinkName = name;
+            }
+        }
+    };
+
+    pa_threaded_mainloop_lock(m_mainloop);
+    pa_operation *op = pa_context_get_sink_info_list(m_context, callback, &data);
+    if (op) {
+        waitForOperation(op);
+        pa_operation_unref(op);
+    }
+    pa_threaded_mainloop_unlock(m_mainloop);
+
+    return data.sinkName;
+}
+
+bool PulseAudioController::setDefaultSink(const QString &sinkName)
+{
+    if (!m_initialized || sinkName.isEmpty()) return false;
+
+    pa_threaded_mainloop_lock(m_mainloop);
+    pa_operation *op = pa_context_set_default_sink(m_context, sinkName.toUtf8().constData(), nullptr, nullptr);
+    bool ok = waitForOperation(op);
+    if (op) pa_operation_unref(op);
+    pa_threaded_mainloop_unlock(m_mainloop);
+
+    return ok;
+}
+
 int PulseAudioController::getSinkVolume(const QString &sinkName)
 {
     if (!m_initialized) return -1;

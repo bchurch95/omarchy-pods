@@ -1672,13 +1672,11 @@ public:
         if (state == MediaController::MediaState::Playing) {
             QString addr = getAirPodsAddress();
             if (socket && socket->isOpen()) {
-                if (mediaController && !mediaController->isActiveOutputDeviceAirPods()) {
-                    LOG_INFO("Media started playing on Linux and AirPods not active: sending Apple Handoff CLAIM");
-                    writePacketToSocket(AirPodsPackets::OwnsConnection::CLAIM, "Sent Apple Handoff CLAIM packet: ");
-                    if (!addr.isEmpty()) {
-                        QString sinkMac = addr;
-                        mediaController->activateA2dpProfileWithRetry(sinkMac.replace(":", "_"));
-                    }
+                LOG_INFO("Media started playing on Linux: sending Apple Handoff CLAIM");
+                writePacketToSocket(AirPodsPackets::OwnsConnection::CLAIM, "Sent Apple Handoff CLAIM packet: ");
+                if (!addr.isEmpty()) {
+                    QString sinkMac = addr;
+                    mediaController->activateA2dpProfileWithRetry(sinkMac.replace(":", "_"));
                 }
             } else {
                 LOG_INFO("Media started playing on Linux and AirPods not connected: initiating handoff connection");
