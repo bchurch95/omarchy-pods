@@ -46,9 +46,7 @@ void PlayerStatusWatcher::updateStatus() {
         }
     }
     QString current = getCurrentPlaybackStatus(m_playerService);
-    if (!current.isEmpty()) {
-        emit playbackStatusChanged(current);
-    }
+    emit playbackStatusChanged(current);
 }
 
 void PlayerStatusWatcher::onServiceOwnerChanged(const QString &name, const QString &, const QString &newOwner)

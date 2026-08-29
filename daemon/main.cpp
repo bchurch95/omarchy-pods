@@ -945,6 +945,15 @@ private slots:
             LOG_DEBUG("AIRPODS_DISCONNECTED packet written: " << AirPodsPackets::Connection::AIRPODS_DISCONNECTED.toHex());
         }
 
+        QString name = m_lastAirPodsName;
+        if (name.isEmpty() && m_deviceInfo && !m_deviceInfo->deviceName().isEmpty()) {
+            name = m_deviceInfo->deviceName();
+        } else if (name.isEmpty() && m_deviceInfo && m_deviceInfo->model() != AirPodsModel::Unknown) {
+            name = modelDisplayName(m_deviceInfo->model());
+        } else if (name.isEmpty()) {
+            name = tr("AirPods");
+        }
+
         // Clear the device name and model
         m_deviceInfo->reset();
         m_bleManager->startScan();
@@ -955,14 +964,6 @@ private slots:
         // doesn't want to see "AirPods Disconnected" every time they close
         // the lid. Tray icon still resets so visual state is accurate.
         if (!m_isSuspending) {
-            QString name = m_lastAirPodsName;
-            if (name.isEmpty() && m_deviceInfo && !m_deviceInfo->deviceName().isEmpty()) {
-                name = m_deviceInfo->deviceName();
-            } else if (name.isEmpty() && m_deviceInfo && m_deviceInfo->model() != AirPodsModel::Unknown) {
-                name = modelDisplayName(m_deviceInfo->model());
-            } else if (name.isEmpty()) {
-                name = tr("AirPods");
-            }
             m_notifier->notify(
                 tr("%1 Disconnected").arg(name),
                 tr("Your %1 has been disconnected").arg(name),

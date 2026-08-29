@@ -229,7 +229,11 @@ QString BluetoothMonitor::findPairedAirPodsAddress()
         if (!interfaces.contains("org.bluez.Device1")) continue;
 
         const QVariantMap &deviceProps = interfaces.value("org.bluez.Device1");
-        if (!deviceProps.contains("UUIDs") || !deviceProps.contains("Address")) continue;
+        if (!deviceProps.contains("UUIDs") || !deviceProps.contains("Address") ||
+            !deviceProps.value("Paired").toBool())
+        {
+            continue;
+        }
 
         const QStringList uuids = deviceProps["UUIDs"].toStringList();
         if (uuids.contains("74ec2172-0bad-4d01-8f77-997b2be0722a")) {
