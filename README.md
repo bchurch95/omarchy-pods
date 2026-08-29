@@ -148,7 +148,7 @@ of writing. Nothing in this daemon does that today.
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/bchurch95/omarchy-pods --enable
+omarchy plugin add https://github.com/thisisgm/omarchy-pods --enable
 ~/.config/omarchy/plugins/io.github.thisisgm.omapods/setup
 ```
 

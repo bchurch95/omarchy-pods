@@ -33,7 +33,11 @@ void PlayerStatusWatcher::onPropertiesChanged(const QString &interface,
                                               const QStringList &)
 {
     if (interface == "org.mpris.MediaPlayer2.Player" && changed.contains("PlaybackStatus")) {
-        emit playbackStatusChanged(changed.value("PlaybackStatus").toString());
+        if (!m_playerService.isEmpty()) {
+            emit playbackStatusChanged(changed.value("PlaybackStatus").toString());
+        } else {
+            updateStatus();
+        }
     }
 }
 

@@ -141,12 +141,16 @@ public:
         CrossDevice.isEnabled = loadCrossDeviceEnabled();
         setEarDetectionBehavior(loadEarDetectionSettings());
         setRetryAttempts(loadRetryAttempts());
-        // Restore persisted PhoneMAC into the process env BEFORE
-        // connectToPhone() reads it. setPhoneMac persists to QSettings
-        // (iter-bugfix) so user doesn't have to re-enter on every
-        // restart. If the saved value is invalid (manually edited
-        // settings file), setPhoneMac surfaces the validation error.
         if (m_settings) {
+            m_deviceInfo->loadFromSettings(*m_settings);
+            if (!m_deviceInfo->bluetoothAddress().isEmpty()) {
+                m_lastAirPodsAddress = m_deviceInfo->bluetoothAddress();
+            }
+            // Restore persisted PhoneMAC into the process env BEFORE
+            // connectToPhone() reads it. setPhoneMac persists to QSettings
+            // (iter-bugfix) so user doesn't have to re-enter on every
+            // restart. If the saved value is invalid (manually edited
+            // settings file), setPhoneMac surfaces the validation error.
             const QString savedMac = m_settings->value(QStringLiteral("phoneMac"), QString()).toString();
             if (!savedMac.isEmpty()) {
                 setPhoneMac(savedMac);
@@ -274,24 +278,26 @@ private:
     }
 
     QString getAirPodsAddress() {
+        if (monitor) {
+            QString pairedAddr = monitor->findPairedAirPodsAddress();
+            if (!pairedAddr.isEmpty()) {
+                if (m_lastAirPodsAddress != pairedAddr) {
+                    m_lastAirPodsAddress = pairedAddr;
+                    if (m_deviceInfo) {
+                        m_deviceInfo->setBluetoothAddress(pairedAddr);
+                        if (m_settings) {
+                            m_deviceInfo->saveToSettings(*m_settings);
+                        }
+                    }
+                }
+                return pairedAddr;
+            }
+        }
         if (m_deviceInfo && !m_deviceInfo->bluetoothAddress().isEmpty()) {
             return m_deviceInfo->bluetoothAddress();
         }
         if (!m_lastAirPodsAddress.isEmpty()) {
             return m_lastAirPodsAddress;
-        }
-        if (monitor) {
-            QString pairedAddr = monitor->findPairedAirPodsAddress();
-            if (!pairedAddr.isEmpty()) {
-                m_lastAirPodsAddress = pairedAddr;
-                if (m_deviceInfo) {
-                    m_deviceInfo->setBluetoothAddress(pairedAddr);
-                    if (m_settings) {
-                        m_deviceInfo->saveToSettings(*m_settings);
-                    }
-                }
-                return pairedAddr;
-            }
         }
         return QString();
     }
@@ -1383,6 +1389,7 @@ private slots:
 
             if (mediaController && mediaController->getCurrentMediaState() == MediaController::MediaState::Playing) {
                 LOG_INFO("Media is playing on connect: sending Apple Handoff CLAIM");
+                m_lastClaimTimer.restart();
                 writePacketToSocket(AirPodsPackets::OwnsConnection::CLAIM, "Sent Apple Handoff CLAIM packet: ");
                 QString addr = getAirPodsAddress();
                 if (!addr.isEmpty()) {
