@@ -1023,28 +1023,25 @@ private slots:
         }
     }
 
-    // Gated on the last probe answer, so pods that are merely away cannot restart the ladder every tick.
     void checkControlLinkWatchdog()
     {
-        if (ControlReconnect::shouldRescanFromWatchdog(
-                areAirpodsConnected(), m_controlRecovery.isActive(), m_isSuspending,
-                !m_lastAirPodsAddress.isEmpty())) {
-            if (monitor->checkAlreadyConnectedDevices()) {
-                LOG_INFO("Control link watchdog: swept up AirPods that no BlueZ signal announced");
-            }
+        if (areAirpodsConnected() || m_controlRecovery.isActive() || m_isSuspending) {
             return;
         }
 
-        if (!ControlReconnect::shouldRetryFromWatchdog(
+        if (ControlReconnect::shouldRetryFromWatchdog(
                 areAirpodsConnected(), m_controlRecovery.isActive(), m_isSuspending,
                 !m_lastAirPodsAddress.isEmpty(), m_bluezReportedConnected)) {
+            LOG_INFO("Control link watchdog: last BlueZ probe said connected, retrying "
+                     << m_lastAirPodsAddress);
+            scheduleControlReconnect(m_lastAirPodsAddress, m_lastAirPodsName,
+                                     QStringLiteral("watchdog recheck"));
             return;
         }
 
-        LOG_INFO("Control link watchdog: last BlueZ probe said connected, retrying "
-                 << m_lastAirPodsAddress);
-        scheduleControlReconnect(m_lastAirPodsAddress, m_lastAirPodsName,
-                                 QStringLiteral("watchdog recheck"));
+        if (monitor->checkAlreadyConnectedDevices()) {
+            LOG_INFO("Control link watchdog: swept up AirPods that no BlueZ signal announced");
+        }
     }
 
     void attemptControlReconnect()
